@@ -1,0 +1,32 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "TeeZeeNator",
+  "outputfilename": "TeeZeeNator",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Koteyye",
+    "email": "koteyye@gmail.com"
+  },
+  "info": {
+    "companyName": "Koteyye",
+    "productName": "TeeZeeNator",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright © 2025 Koteyye",
+    "comments": "TeeZeeNator - Генератор технических требований с помощью ИИ"
+  },
+  "windows": {
+    "icon": "build/appicon.ico",
+    "wailsjs": {
+      "generateJS": true
+    }
+  },
+  "darwin": {
+    "icon": "build/appicon.icns"
+  },
+  "linux": {
+    "icon": "build/appicon.png"
+  }
+}

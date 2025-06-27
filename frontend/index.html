@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Генерация требований</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Загрузка Marked из CDN -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<!-- Monaco Editor загрузка через require.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+<script>
+require.config({
+    paths: {
+        'monaco': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs',
+        'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs'
+    }
+});
+
+window.MonacoEnvironment = {
+    getWorkerUrl: function (moduleId, label) {
+        if (label === 'json') {
+            return 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/json/json.worker.js';
+        }
+        if (label === 'css' || label === 'scss' || label === 'less') {
+            return 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/css/css.worker.js';
+        }
+        if (label === 'html' || label === 'handlebars' || label === 'razor') {
+            return 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/html/html.worker.js';
+        }
+        if (label === 'typescript' || label === 'javascript') {
+            return 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/language/typescript/ts.worker.js';
+        }
+        return 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/editor/editor.worker.js';
+    }
+};
+
+// Загрузка Monaco Editor
+require(['vs/editor/editor.main'], function() {
+    console.log('Monaco Editor загружен через require.js');
+    window.monacoLoaded = true;
+    window.dispatchEvent(new CustomEvent('monacoReady'));
+});
+</script>
+
+<script src="./src/main.js" type="module"></script>
+</body>
+</html>
