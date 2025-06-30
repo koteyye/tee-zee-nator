@@ -654,7 +654,7 @@ class _MainScreenState extends State<MainScreen> {
                         Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
                         const SizedBox(width: 8),
                         Text(
-                          'TeeZeeNator v1.0.0',
+                          'TeeZeeNator v1.0.1',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[600],
