@@ -46,3 +46,40 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# macOS specific
+/macos/Flutter/ephemeral/
+/macos/Flutter/GeneratedPluginRegistrant.*
+/macos/build/
+/macos/Pods/
+/macos/.symlinks/
+/macos/Runner.xcworkspace/xcuserdata/
+/macos/Runner.xcodeproj/xcuserdata/
+/macos/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+/macos/Runner.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+/macos/Runner.xcodeproj/project.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+
+# Distribution files
+*.dmg
+*.zip
+*.pkg
+*.app
+
+# Generated files
+*.g.dart
+*.freezed.dart
+*.mocks.dart
+
+# Local configuration files
+.env
+.env.local
+*.config.json
+
+# Logs and debugging
+*.log
+flutter_*.log
+crash_*.log
+flutter_01.log
+
+# Coverage reports
+/coverage/

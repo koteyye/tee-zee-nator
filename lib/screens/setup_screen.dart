@@ -7,6 +7,8 @@ import '../models/openai_model.dart';
 import 'main_screen.dart';
 
 class SetupScreen extends StatefulWidget {
+  const SetupScreen({super.key});
+
   @override
   _SetupScreenState createState() => _SetupScreenState();
 }
@@ -223,7 +225,7 @@ class _SetupScreenState extends State<SetupScreen> {
                           if (openAIService.error != null)
                             Text(
                               'Ошибка: ${openAIService.error}',
-                              style: TextStyle(color: Colors.red),
+                              style: const TextStyle(color: Colors.red),
                             ),
                         ],
                       );

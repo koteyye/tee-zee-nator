@@ -8,6 +8,8 @@ import '../models/generation_history.dart';
 import 'setup_screen.dart';
 
 class MainScreen extends StatefulWidget {
+  const MainScreen({super.key});
+
   @override
   _MainScreenState createState() => _MainScreenState();
 }
@@ -17,7 +19,7 @@ class _MainScreenState extends State<MainScreen> {
   final _changesController = TextEditingController();
   
   String _generatedTz = '';
-  List<GenerationHistory> _history = [];
+  final List<GenerationHistory> _history = [];
   bool _isGenerating = false;
   String? _errorMessage;
   bool _useBaseTemplate = true; // Новое состояние для переключателя

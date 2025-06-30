@@ -11,12 +11,9 @@ class FileService {
         allowedExtensions: ['md'],
       );
       
-      if (outputFile != null) {
-        final file = File(outputFile);
-        await file.writeAsString(content);
-        return outputFile;
-      }
-      return null;
+      final file = File(outputFile!);
+      await file.writeAsString(content);
+      return outputFile;
     } catch (e) {
       throw Exception('Ошибка при сохранении файла: $e');
     }
