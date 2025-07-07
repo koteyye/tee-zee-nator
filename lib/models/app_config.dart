@@ -3,7 +3,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'app_config.g.dart';
 
-@HiveType(typeId: 0)
+@HiveType(typeId: 1) // Изменили typeId для новой версии модели
 @JsonSerializable()
 class AppConfig {
   @HiveField(0)
@@ -23,6 +23,16 @@ class AppConfig {
   
   factory AppConfig.fromJson(Map<String, dynamic> json) => _$AppConfigFromJson(json);
   Map<String, dynamic> toJson() => _$AppConfigToJson(this);
+  
+  // Кастомный fromMap для обработки старых данных
+  factory AppConfig.fromMap(Map<dynamic, dynamic> map) {
+    return AppConfig(
+      apiUrl: map[0] as String,
+      apiToken: map[1] as String,
+      selectedModel: map[2] as String?,
+      // Игнорируем старое поле useConfluenceFormat - теперь всегда используем Confluence
+    );
+  }
   
   AppConfig copyWith({
     String? apiUrl,

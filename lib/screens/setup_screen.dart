@@ -259,10 +259,45 @@ class _SetupScreenState extends State<SetupScreen> {
                 ),
                 const SizedBox(height: 24),
                 
-                // Кнопка продолжения
-                ElevatedButton(
-                  onPressed: _selectedModel != null ? _saveAndProceed : null,
-                  child: const Text('Приступить к работе'),
+                // Кнопки
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Основная кнопка продолжения
+                    ElevatedButton(
+                      onPressed: _selectedModel != null ? _saveAndProceed : null,
+                      child: const Text('Приступить к работе'),
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Кнопка для сброса конфигурации (в случае проблем)
+                    TextButton.icon(
+                      onPressed: () async {
+                        try {
+                          final configService = Provider.of<ConfigService>(context, listen: false);
+                          await configService.forceReset();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Конфигурация сброшена. Попробуйте заново.'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Ошибка при сбросе: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Сбросить конфигурацию'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.orange[700],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
