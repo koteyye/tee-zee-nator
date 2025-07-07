@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/config_service.dart';
-import '../services/openai_service.dart';
+import '../services/llm_service.dart';
 import '../models/app_config.dart';
 import '../models/openai_model.dart';
 import 'main_screen.dart';
@@ -17,17 +17,51 @@ class _SetupScreenState extends State<SetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _urlController = TextEditingController(text: 'https://api.openai.com/v1');
   final _tokenController = TextEditingController();
+  final _llmopsUrlController = TextEditingController(text: 'http://localhost:11434');
+  final _llmopsModelController = TextEditingController(text: 'llama3');
+  final _llmopsAuthController = TextEditingController();
   
+  String _selectedProvider = 'openai';
   bool _isTestingConnection = false;
   bool _connectionSuccess = false;
   String? _errorMessage;
   OpenAIModel? _selectedModel;
+  List<OpenAIModel> _availableModels = [];
   
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentConfig();
+  }
+
   @override
   void dispose() {
     _urlController.dispose();
     _tokenController.dispose();
+    _llmopsUrlController.dispose();
+    _llmopsModelController.dispose();
+    _llmopsAuthController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadCurrentConfig() async {
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    final config = configService.config;
+    
+    if (config != null) {
+      setState(() {
+        _selectedProvider = config.provider;
+        
+        if (_selectedProvider == 'openai') {
+          _urlController.text = config.apiUrl;
+          _tokenController.text = config.apiToken;
+        } else {
+          _llmopsUrlController.text = config.llmopsBaseUrl ?? 'http://localhost:11434';
+          _llmopsModelController.text = config.llmopsModel ?? 'llama3';
+          _llmopsAuthController.text = config.llmopsAuthHeader ?? '';
+        }
+      });
+    }
   }
   
   Future<void> _testConnection() async {
@@ -37,39 +71,116 @@ class _SetupScreenState extends State<SetupScreen> {
       _isTestingConnection = true;
       _connectionSuccess = false;
       _errorMessage = null;
+      _availableModels = [];
     });
     
-    final openAIService = Provider.of<OpenAIService>(context, listen: false);
-    final success = await openAIService.testConnection(
-      _urlController.text.trim(),
-      _tokenController.text.trim(),
-    );
-    
-    setState(() {
-      _isTestingConnection = false;
-      _connectionSuccess = success;
-      if (!success) {
-        _errorMessage = openAIService.error ?? 'Не удалось подключиться к OpenAI API';
-      } else if (openAIService.availableModels.isNotEmpty) {
-        _selectedModel = openAIService.availableModels.first;
+    try {
+      final llmService = Provider.of<LLMService>(context, listen: false);
+      
+      if (_selectedProvider == 'openai') {
+        final testConfig = AppConfig(
+          apiUrl: _urlController.text.trim(),
+          apiToken: _tokenController.text.trim(),
+          provider: 'openai',
+          defaultModel: 'gpt-3.5-turbo',
+          reviewModel: 'gpt-3.5-turbo',
+        );
+        
+        llmService.initializeProvider(testConfig);
+        final success = await llmService.testConnection();
+        
+        if (success) {
+          final models = await llmService.getModels();
+          final openAIModels = models.map((id) => OpenAIModel(
+            id: id, 
+            object: 'model',
+            created: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            ownedBy: 'openai'
+          )).toList();
+          
+          setState(() {
+            _isTestingConnection = false;
+            _connectionSuccess = true;
+            _availableModels = openAIModels;
+            if (openAIModels.isNotEmpty) {
+              _selectedModel = openAIModels.first;
+            }
+          });
+        } else {
+          throw Exception(llmService.error ?? 'Не удалось подключиться к OpenAI API');
+        }
+      } else {
+        // Для LLMOps просто проверяем соединение с простым запросом
+        final testConfig = AppConfig(
+          apiUrl: 'https://api.openai.com/v1', // Заглушка для обязательных полей
+          apiToken: 'test-token', // Заглушка для обязательных полей
+          provider: 'llmops',
+          llmopsBaseUrl: _llmopsUrlController.text.trim(),
+          llmopsModel: _llmopsModelController.text.trim(),
+          llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty 
+              ? null 
+              : _llmopsAuthController.text.trim(),
+          defaultModel: _llmopsModelController.text.trim(),
+          reviewModel: _llmopsModelController.text.trim(),
+        );
+        
+        llmService.initializeProvider(testConfig);
+        final success = await llmService.testConnection();
+        
+        if (success) {
+          setState(() {
+            _isTestingConnection = false;
+            _connectionSuccess = true;
+          });
+        } else {
+          throw Exception(llmService.error ?? 'Не удалось подключиться к LLMOps серверу');
+        }
       }
-    });
+    } catch (e) {
+      setState(() {
+        _isTestingConnection = false;
+        _connectionSuccess = false;
+        _errorMessage = 'Ошибка подключения: $e';
+      });
+    }
   }
   
   Future<void> _saveAndProceed() async {
-    if (_selectedModel == null) return;
+    AppConfig config;
     
-    final config = AppConfig(
-      apiUrl: _urlController.text.trim(),
-      apiToken: _tokenController.text.trim(),
-      selectedModel: _selectedModel!.id,
-    );
+    if (_selectedProvider == 'openai') {
+      if (_selectedModel == null) return;
+      
+      config = AppConfig(
+        apiUrl: _urlController.text.trim(),
+        apiToken: _tokenController.text.trim(),
+        provider: 'openai',
+        defaultModel: _selectedModel!.id,
+        reviewModel: _selectedModel!.id,
+        selectedTemplateId: null,
+      );
+    } else {
+      config = AppConfig(
+        apiUrl: 'https://api.openai.com/v1', // Заглушка для обязательных полей
+        apiToken: 'test-token', // Заглушка для обязательных полей
+        provider: 'llmops',
+        llmopsBaseUrl: _llmopsUrlController.text.trim(),
+        llmopsModel: _llmopsModelController.text.trim(),
+        llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty 
+            ? null 
+            : _llmopsAuthController.text.trim(),
+        defaultModel: _llmopsModelController.text.trim(),
+        reviewModel: _llmopsModelController.text.trim(),
+        selectedTemplateId: null,
+      );
+    }
     
     final configService = Provider.of<ConfigService>(context, listen: false);
     await configService.saveConfig(config);
     
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => MainScreen()),
+      MaterialPageRoute(builder: (context) => const MainScreen()),
     );
   }
   
@@ -87,45 +198,131 @@ class _SetupScreenState extends State<SetupScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Настройте подключение к OpenAI API',
+                'Настройте подключение к LLM провайдеру',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 24),
               
-              // URL поле
-              TextFormField(
-                controller: _urlController,
+              // Выбор провайдера
+              DropdownButtonFormField<String>(
+                value: _selectedProvider,
                 decoration: const InputDecoration(
-                  labelText: 'OpenAI API URL',
-                  hintText: 'https://api.openai.com/v1',
+                  labelText: 'Провайдер LLM',
+                  border: OutlineInputBorder(),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Введите URL API';
+                items: const [
+                  DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
+                  DropdownMenuItem(value: 'llmops', child: Text('LLMOps')),
+                ],
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _selectedProvider = newValue;
+                      _connectionSuccess = false;
+                      _errorMessage = null;
+                    });
                   }
-                  if (!Uri.tryParse(value)!.isAbsolute) {
-                    return 'Введите корректный URL';
-                  }
-                  return null;
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               
-              // Token поле
-              TextFormField(
-                controller: _tokenController,
-                decoration: const InputDecoration(
-                  labelText: 'API Token',
-                  hintText: 'sk-...',
+              // Настройки OpenAI
+              if (_selectedProvider == 'openai') ...[
+                const Text(
+                  'Настройки OpenAI',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
-                obscureText: true,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Введите API токен';
-                  }
-                  return null;
-                },
-              ),
+                const SizedBox(height: 16),
+                
+                // URL поле
+                TextFormField(
+                  controller: _urlController,
+                  decoration: const InputDecoration(
+                    labelText: 'OpenAI API URL',
+                    hintText: 'https://api.openai.com/v1',
+                  ),
+                  validator: (value) {
+                    if (_selectedProvider == 'openai' && (value == null || value.isEmpty)) {
+                      return 'Введите URL API';
+                    }
+                    if (value != null && value.isNotEmpty && !Uri.tryParse(value)!.isAbsolute) {
+                      return 'Введите корректный URL';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // Token поле
+                TextFormField(
+                  controller: _tokenController,
+                  decoration: const InputDecoration(
+                    labelText: 'API Token',
+                    hintText: 'sk-...',
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (_selectedProvider == 'openai' && (value == null || value.isEmpty)) {
+                      return 'Введите API токен';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+              
+              // Настройки LLMOps
+              if (_selectedProvider == 'llmops') ...[
+                const Text(
+                  'Настройки LLMOps',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                
+                // Base URL поле
+                TextFormField(
+                  controller: _llmopsUrlController,
+                  decoration: const InputDecoration(
+                    labelText: 'Base URL',
+                    hintText: 'http://localhost:11434',
+                  ),
+                  validator: (value) {
+                    if (_selectedProvider == 'llmops' && (value == null || value.isEmpty)) {
+                      return 'Введите Base URL';
+                    }
+                    if (value != null && value.isNotEmpty && !Uri.tryParse(value)!.isAbsolute) {
+                      return 'Введите корректный URL';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // Model поле
+                TextFormField(
+                  controller: _llmopsModelController,
+                  decoration: const InputDecoration(
+                    labelText: 'Название модели',
+                    hintText: 'llama3',
+                  ),
+                  validator: (value) {
+                    if (_selectedProvider == 'llmops' && (value == null || value.isEmpty)) {
+                      return 'Введите название модели';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                
+                // Authorization Header (необязательно)
+                TextFormField(
+                  controller: _llmopsAuthController,
+                  decoration: const InputDecoration(
+                    labelText: 'Authorization Header (необязательно)',
+                    hintText: 'Bearer your-token',
+                  ),
+                  obscureText: true,
+                ),
+              ],
               const SizedBox(height: 24),
               
               // Кнопка проверки соединения
@@ -191,72 +388,40 @@ class _SetupScreenState extends State<SetupScreen> {
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                     TextButton(
-                      onPressed: () async {
-                        final openAIService = Provider.of<OpenAIService>(context, listen: false);
-                        await openAIService.testConnection(
-                          _urlController.text.trim(),
-                          _tokenController.text.trim(),
-                        );
-                        if (openAIService.availableModels.isNotEmpty && _selectedModel == null) {
-                          setState(() {
-                            _selectedModel = openAIService.availableModels.first;
-                          });
-                        }
-                      },
+                      onPressed: _testConnection,
                       child: const Text('Обновить'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 
-                Consumer<OpenAIService>(
-                  builder: (context, openAIService, child) {
-                    if (openAIService.isLoading) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-                    
-                    if (openAIService.availableModels.isEmpty) {
-                      return Column(
-                        children: [
-                          const Text('Модели не найдены'),
-                          const SizedBox(height: 8),
-                          if (openAIService.error != null)
-                            Text(
-                              'Ошибка: ${openAIService.error}',
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                        ],
-                      );
-                    }
-                    
-                    return Container(
-                      height: 200,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: ListView.builder(
-                        itemCount: openAIService.availableModels.length,
-                        itemBuilder: (context, index) {
-                          final model = openAIService.availableModels[index];
-                          return RadioListTile<OpenAIModel>(
-                            title: Text(model.id),
-                            subtitle: Text('Owner: ${model.ownedBy}'),
-                            value: model,
-                            groupValue: _selectedModel,
-                            onChanged: (OpenAIModel? value) {
-                              setState(() {
-                                _selectedModel = value;
-                              });
-                            },
-                          );
-                        },
-                      ),
-                    );
-                  },
-                ),
+                // Список моделей (только для OpenAI)
+                if (_selectedProvider == 'openai' && _connectionSuccess && _availableModels.isNotEmpty)
+                  Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ListView.builder(
+                      itemCount: _availableModels.length,
+                      itemBuilder: (context, index) {
+                        final model = _availableModels[index];
+                        return RadioListTile<OpenAIModel>(
+                          title: Text(model.id),
+                          subtitle: Text('Owner: ${model.ownedBy}'),
+                          value: model,
+                          groupValue: _selectedModel,
+                          onChanged: (OpenAIModel? value) {
+                            setState(() {
+                              _selectedModel = value;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                
                 const SizedBox(height: 24),
                 
                 // Кнопки
@@ -265,7 +430,9 @@ class _SetupScreenState extends State<SetupScreen> {
                   children: [
                     // Основная кнопка продолжения
                     ElevatedButton(
-                      onPressed: _selectedModel != null ? _saveAndProceed : null,
+                      onPressed: _connectionSuccess && (_selectedProvider != 'openai' || _selectedModel != null) 
+                          ? _saveAndProceed 
+                          : null,
                       child: const Text('Приступить к работе'),
                     ),
                     const SizedBox(height: 8),

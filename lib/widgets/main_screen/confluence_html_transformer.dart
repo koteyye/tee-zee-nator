@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
 /// Преобразователь Confluence Storage Format в обычный HTML для отображения
 class ConfluenceHtmlTransformer {
   /// Преобразует Confluence HTML в обычный HTML для визуального отображения
@@ -228,33 +225,7 @@ class ConfluenceHtmlTransformer {
     return cdataMatch?.group(1)?.trim() ?? body.trim();
   }
   
-  /// Кодирование PlantUML с использованием deflate + base64 
-  static String _encodePlantUml(String plantUmlCode) {
-    try {
-      // Конвертируем текст в UTF-8 байты
-      final utf8Bytes = utf8.encode(plantUmlCode);
-      
-      // Сжимаем с помощью deflate алгоритма
-      final deflateCodec = ZLibCodec(level: 9, raw: true);
-      final compressedBytes = deflateCodec.encode(utf8Bytes);
-      
-      // Конвертируем в base64
-      String base64 = base64Encode(compressedBytes);
-      
-      // Заменяем символы для PlantUML URL безопасности
-      base64 = base64
-          .replaceAll('+', '-')
-          .replaceAll('/', '_')
-          .replaceAll('=', '');
-      
-      return base64;
-    } catch (e) {
-      // В случае ошибки возвращаем простую заглушку
-      return 'error_encoding';
-    }
-  }
-  
-  /// Генерирует HTML с изображением PlantUML диаграммы
+  /// Генерирует HTML с кодом PlantUML диаграммы
   static String _generatePlantUmlImage(String plantUmlCode) {
     if (plantUmlCode.isEmpty) {
       return '''
@@ -264,23 +235,13 @@ class ConfluenceHtmlTransformer {
 </div>''';
     }
     
-    // Генерируем URL для PlantUML сервера
-    final encodedCode = _encodePlantUml(plantUmlCode);
-    final imageUrl = 'https://www.plantuml.com/plantuml/png/$encodedCode';
-    
     return '''
-<div style="margin: 8px 0; text-align: center;">
-  <div style="background: #F4F5F7; padding: 8px; margin-bottom: 8px; border-radius: 4px;">
-    <span style="font-size: 12px; color: #6B778C;">📊 PlantUML диаграмма</span>
+<div style="margin: 8px 0;">
+  <div style="background: #F4F5F7; padding: 8px; margin-bottom: 8px; border-radius: 4px; border: 1px solid #DFE1E6;">
+    <span style="font-size: 12px; color: #6B778C; font-weight: bold;">📊 PlantUML диаграмма</span>
   </div>
-  <img src="$imageUrl" alt="PlantUML диаграмма" style="max-width: 100%; height: auto; border: 1px solid #DFE1E6; border-radius: 4px;" 
-       onerror="this.style.display='none'; this.nextElementSibling.style.display='block';" />
-  <div style="display: none; border: 2px dashed #DFE1E6; padding: 16px; color: #6B778C; border-radius: 4px;">
-    <div>❌ Не удалось загрузить диаграмму</div>
-    <details style="margin-top: 8px;">
-      <summary style="cursor: pointer;">Показать код</summary>
-      <pre style="background: #F4F5F7; padding: 8px; margin-top: 8px; font-size: 11px; text-align: left;">$plantUmlCode</pre>
-    </details>
+  <div style="border: 1px solid #DFE1E6; border-radius: 4px;">
+    <pre style="background: #F8F9FA; padding: 12px; margin: 0; overflow-x: auto; font-size: 12px; line-height: 1.4; white-space: pre-wrap;">$plantUmlCode</pre>
   </div>
 </div>''';
   }

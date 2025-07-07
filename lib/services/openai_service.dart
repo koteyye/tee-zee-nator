@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/services.dart';
 import '../models/openai_model.dart';
 import '../models/chat_message.dart';
 import '../models/app_config.dart';
@@ -10,6 +9,12 @@ class OpenAIService extends ChangeNotifier {
   List<OpenAIModel> _availableModels = [];
   bool _isLoading = false;
   String? _error;
+  
+  // Системный промт для ревью шаблонов
+  static const String TEMPLATE_REVIEW_PROMPT = '''
+Ты главный методолог требований, тебе нужно провести ревью шаблона и выдать все замечания, вопросы (если они есть) и предложения по оптимизации шаблона.
+Обязательно выдели есть ли КРИТИЧЕСКИЕ замечания к шаблону. При наличии критических замечаний введи в ответ текст "[CRITICAL_ALERT]"
+''';
   
   List<OpenAIModel> get availableModels => _availableModels;
   bool get isLoading => _isLoading;
@@ -103,7 +108,7 @@ class OpenAIService extends ChangeNotifier {
     required AppConfig config,
     required String rawRequirements,
     String? changes,
-    bool useBaseTemplate = true,
+    String? templateContent,
   }) async {
     try {
       _setLoading(true);
@@ -114,7 +119,7 @@ class OpenAIService extends ChangeNotifier {
         config: config,
         rawRequirements: rawRequirements,
         changes: changes,
-        useBaseTemplate: useBaseTemplate,
+        templateContent: templateContent,
       );
     } catch (e) {
       _setError('Ошибка при генерации ТЗ: $e');
@@ -128,20 +133,23 @@ class OpenAIService extends ChangeNotifier {
     required AppConfig config,
     required String rawRequirements,
     String? changes,
-    bool useBaseTemplate = true,
+    String? templateContent,
   }) async {
     // Формируем системный промт для Confluence HTML
     String systemPrompt;
-    if (useBaseTemplate) {
-      // Загружаем HTML шаблон ТЗ
-      final template = await rootBundle.loadString('assets/tz_pattern_confluence.html');
+    if (templateContent != null && templateContent.isNotEmpty) {
+      // Используем предоставленный шаблон
       systemPrompt = '''Senior System Analyst. Генерируй ТЗ в HTML (Confluence Storage Format).
 
 Шаблон:
-$template
+$templateContent
 
 Обязательные теги: <h1>, <h2>, <p>, <ul>, <li>, <strong>, <table>
 Макросы: <ac:structured-macro ac:name="info|warning|note|panel">
+
+Ответ = ТОЛЬКО HTML без объяснений.''';
+    } else {
+      systemPrompt = '''Senior System Analyst. Генерируй ТЗ в HTML (Confluence Storage Format).
 
 Структура:
 <h1>Техническое задание</h1>
@@ -150,18 +158,8 @@ $template
 <h2>3. Проблематика</h2>
 <h2>4. Критерии приемки</h2>
 
-Ответ = ТОЛЬКО HTML без объяснений.''';
-    } else {
-      systemPrompt = '''Senior System Analyst. Генерируй ТЗ в HTML (Confluence Storage Format).
-
 Обязательные теги: <h1>, <h2>, <p>, <ul>, <li>, <strong>, <table>
 Макросы: <ac:structured-macro ac:name="info|warning|note|panel">
-
-Структура:
-<h1>Техническое задание</h1>
-<h2>1. User Story</h2>
-<h2>2. Критерии приемки</h2>
-<h2>3. Функциональные требования</h2>
 
 Ответ = ТОЛЬКО HTML без объяснений.''';
     }
@@ -193,7 +191,7 @@ $template
     print('=== КОНЕЦ ОТЛАДКИ ЗАПРОСА ===');
     
     final request = ChatRequest(
-      model: config.selectedModel ?? _availableModels.first.id,
+      model: config.defaultModel ?? _availableModels.first.id,
       messages: messages,
       maxTokens: 4000,
       temperature: 0.7,
@@ -230,5 +228,49 @@ $template
     }
     
     throw Exception('Пустой ответ от API');
+  }
+  
+  Future<String> reviewTemplate(String templateContent, String modelId, AppConfig config) async {
+    try {
+      _setLoading(true);
+      _setError(null);
+      
+      final messages = [
+        ChatMessage(role: 'system', content: TEMPLATE_REVIEW_PROMPT),
+        ChatMessage(role: 'user', content: 'Проведи ревью следующего шаблона технического задания:\n\n$templateContent'),
+      ];
+      
+      final request = ChatRequest(
+        model: modelId,
+        messages: messages,
+        maxTokens: 4000,
+        temperature: 0.3, // Более низкая температура для аналитических задач
+      );
+      
+      final response = await _dio.post(
+        '${config.apiUrl}/chat/completions',
+        data: request.toJson(),
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer ${config.apiToken}',
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+      
+      if (response.statusCode == 200) {
+        final chatResponse = ChatResponse.fromJson(response.data);
+        if (chatResponse.choices.isNotEmpty) {
+          return chatResponse.choices.first.message.content;
+        }
+      }
+      
+      throw Exception('Пустой ответ от API при ревью шаблона');
+    } catch (e) {
+      _setError('Ошибка при ревью шаблона: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
   }
 }

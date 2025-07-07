@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/config_service.dart';
-import '../services/openai_service.dart';
+import '../services/llm_service.dart';
+import '../services/template_service.dart';
 import '../services/file_service.dart';
 import '../models/generation_history.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
 import 'setup_screen.dart';
+import 'template_management_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -23,7 +25,6 @@ class _MainScreenState extends State<MainScreen> {
   final List<GenerationHistory> _history = [];
   bool _isGenerating = false;
   String? _errorMessage;
-  bool _useBaseTemplate = true; // Новое состояние для переключателя
   
   @override
   void initState() {
@@ -49,7 +50,7 @@ class _MainScreenState extends State<MainScreen> {
   
   Future<void> _loadModels() async {
     final configService = Provider.of<ConfigService>(context, listen: false);
-    final openAIService = Provider.of<OpenAIService>(context, listen: false);
+    final llmService = Provider.of<LLMService>(context, listen: false);
     
     // Инициализируем конфигурацию, если она не загружена
     if (configService.config == null) {
@@ -57,7 +58,7 @@ class _MainScreenState extends State<MainScreen> {
     }
     
     if (configService.config != null) {
-      await openAIService.getModels(configService.config!);
+      llmService.initializeProvider(configService.config!);
     }
   }
   
@@ -65,7 +66,7 @@ class _MainScreenState extends State<MainScreen> {
     if (_rawRequirementsController.text.trim().isEmpty) return;
     
     final configService = Provider.of<ConfigService>(context, listen: false);
-    final openAIService = Provider.of<OpenAIService>(context, listen: false);
+    final llmService = Provider.of<LLMService>(context, listen: false);
     
     // Проверяем наличие конфигурации
     if (configService.config == null) {
@@ -81,11 +82,14 @@ class _MainScreenState extends State<MainScreen> {
     });
     
     try {
-      final rawResponse = await openAIService.generateTZ(
-        config: configService.config!,
+      // Получаем активный шаблон
+      final templateService = Provider.of<TemplateService>(context, listen: false);
+      final activeTemplate = await templateService.getActiveTemplate();
+      
+      final rawResponse = await llmService.generateTZ(
         rawRequirements: _rawRequirementsController.text,
         changes: _changesController.text.isNotEmpty ? _changesController.text : null,
-        useBaseTemplate: _useBaseTemplate,
+        templateContent: activeTemplate?.content,
       );
       
       // Извлекаем HTML-документ из ответа
@@ -99,7 +103,7 @@ class _MainScreenState extends State<MainScreen> {
           changes: _changesController.text.isNotEmpty ? _changesController.text : null,
           generatedTz: extractedContent,
           timestamp: DateTime.now(),
-          model: configService.config!.selectedModel ?? 'unknown',
+          model: configService.config!.defaultModel ?? 'unknown',
         ));
       });
     } catch (e) {
@@ -140,15 +144,18 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
   
-  void _openSettings() async {
-    final result = await Navigator.of(context).push(
+  void _openSettings() {
+    Navigator.push(
+      context,
       MaterialPageRoute(builder: (context) => SetupScreen()),
     );
-    
-    // Если пользователь вернулся из настроек, перезагружаем модели
-    if (result != null || mounted) {
-      await _loadModels();
-    }
+  }
+
+  void _openTemplateManagement() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const TemplateManagementScreen()),
+    );
   }
   
   void _clearAll() {
@@ -168,6 +175,15 @@ class _MainScreenState extends State<MainScreen> {
       appBar: AppBar(
         actions: [
           TextButton.icon(
+            icon: const Icon(Icons.description, size: 20),
+            label: const Text('Шаблоны ТЗ'),
+            onPressed: _openTemplateManagement,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.black87,
+            ),
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
             icon: const Icon(Icons.settings, size: 20),
             label: const Text('Настройки'),
             onPressed: _openSettings,
@@ -184,14 +200,7 @@ class _MainScreenState extends State<MainScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Настройки модели
-            ModelSettingsCard(
-              useBaseTemplate: _useBaseTemplate,
-              onTemplateToggle: (value) {
-                setState(() {
-                  _useBaseTemplate = value;
-                });
-              },
-            ),
+            const ModelSettingsCard(),
             const SizedBox(height: 16),
               
             // Основной контент

@@ -3,7 +3,7 @@ import 'package:hive/hive.dart';
 import '../models/app_config.dart';
 
 class ConfigService extends ChangeNotifier {
-  static const String _boxName = 'config_v2'; // Изменили имя бокса для избежания конфликтов
+  static const String _boxName = 'config_v3_clean'; // Полностью новый бокс без legacy данных
   static const String _configKey = 'app_config';
   
   AppConfig? _config;
@@ -13,16 +13,27 @@ class ConfigService extends ChangeNotifier {
   
   Future<void> init() async {
     try {
-      // Сначала пытаемся очистить старые боксы, если они существуют
-      await _cleanupOldBoxes();
-      
       // Открываем новый бокс
       _box = await Hive.openBox<AppConfig>(_boxName);
-      _config = _box!.get(_configKey);
+      
+      // Пытаемся прочитать конфигурацию
+      try {
+        _config = _box!.get(_configKey);
+      } catch (e) {
+        print('Ошибка при чтении конфига, возможно старый формат: $e');
+        // Если не можем прочитать конфиг, очищаем и создаем новый
+        await _box!.delete(_configKey);
+        _config = null;
+      }
+      
+      // Если конфигурации нет, оставляем как есть (не мигрируем из legacy, поскольку отключили legacy адаптеры)
+      // Пользователь должен будет заново настроить приложение
+      
     } catch (e) {
       print('Ошибка при инициализации ConfigService: $e');
-      // Если что-то пошло не так, создаем чистый бокс
+      // Если что-то пошло не так, очищаем все и создаем чистый бокс
       try {
+        await _cleanupAllBoxes();
         _box = await Hive.openBox<AppConfig>(_boxName);
         _config = null;
       } catch (e2) {
@@ -32,22 +43,22 @@ class ConfigService extends ChangeNotifier {
     }
   }
   
-  Future<void> _cleanupOldBoxes() async {
-    // Список старых имен боксов для очистки
-    final oldBoxNames = ['config'];
+  Future<void> _cleanupAllBoxes() async {
+    // Список всех возможных имен боксов для очистки
+    final allBoxNames = ['config', 'config_v2', 'config_v3_clean', _boxName];
     
-    for (final oldBoxName in oldBoxNames) {
+    for (final boxName in allBoxNames) {
       try {
-        // Проверяем, открыт ли старый бокс
-        if (Hive.isBoxOpen(oldBoxName)) {
-          await Hive.box(oldBoxName).close();
+        // Проверяем, открыт ли бокс
+        if (Hive.isBoxOpen(boxName)) {
+          await Hive.box(boxName).close();
         }
         
-        // Пытаемся удалить старый файл
-        await Hive.deleteBoxFromDisk(oldBoxName);
-        print('Успешно удален старый бокс: $oldBoxName');
+        // Пытаемся удалить файл бокса
+        await Hive.deleteBoxFromDisk(boxName);
+        print('Успешно удален бокс: $boxName');
       } catch (e) {
-        print('Не удалось удалить старый бокс $oldBoxName: $e');
+        print('Не удалось удалить бокс $boxName: $e');
         // Не прерываем выполнение, просто логируем
       }
     }
@@ -62,14 +73,48 @@ class ConfigService extends ChangeNotifier {
   
   Future<void> saveConfig(AppConfig config) async {
     await init();
-    _config = config;
-    await _box!.put(_configKey, config);
-    notifyListeners();
+    
+    try {
+      // Убеждаемся, что сохраняем именно новый тип AppConfig с typeId=4
+      // Создаем новый экземпляр для гарантии правильного типа
+      final newConfig = AppConfig(
+        apiUrl: config.apiUrl,
+        apiToken: config.apiToken,
+        defaultModel: config.defaultModel,
+        reviewModel: config.reviewModel,
+        selectedTemplateId: config.selectedTemplateId,
+        provider: config.provider,
+        llmopsBaseUrl: config.llmopsBaseUrl,
+        llmopsModel: config.llmopsModel,
+        llmopsAuthHeader: config.llmopsAuthHeader,
+      );
+      
+      _config = newConfig;
+      
+      // Очищаем ключ перед записью, чтобы избежать конфликтов типов
+      await _box!.delete(_configKey);
+      await _box!.put(_configKey, newConfig);
+      
+      notifyListeners();
+    } catch (e) {
+      print('Ошибка при сохранении конфига: $e');
+      // Если ошибка связана с legacy адаптером, делаем полную очистку
+      if (e.toString().contains('read-only') || e.toString().contains('Legacy')) {
+        print('Обнаружена проблема с legacy адаптером, выполняем полную очистку...');
+        await forceReset();
+        // Пытаемся сохранить еще раз после очистки
+        await _box!.put(_configKey, config);
+        _config = config;
+        notifyListeners();
+      } else {
+        rethrow;
+      }
+    }
   }
   
   Future<void> updateSelectedModel(String model) async {
     if (_config != null) {
-      final updatedConfig = _config!.copyWith(selectedModel: model);
+      final updatedConfig = _config!.copyWith(defaultModel: model);
       await saveConfig(updatedConfig);
     }
   }
@@ -90,7 +135,7 @@ class ConfigService extends ChangeNotifier {
       }
       
       // Удаляем все возможные боксы
-      final allBoxNames = ['config', 'config_v2', _boxName];
+      final allBoxNames = ['config', 'config_v2', 'config_v3_clean', _boxName];
       for (final boxName in allBoxNames) {
         try {
           if (Hive.isBoxOpen(boxName)) {
