@@ -34,7 +34,12 @@ class LLMOpsProvider implements LLMProvider {
     };
     
     if (_config.llmopsAuthHeader != null && _config.llmopsAuthHeader!.isNotEmpty) {
-      headers['Authorization'] = _config.llmopsAuthHeader!;
+      String authHeader = _config.llmopsAuthHeader!;
+      // Автоматически добавляем префикс "Bearer ", если его нет
+      if (!authHeader.trim().startsWith('Bearer ')) {
+        authHeader = 'Bearer $authHeader';
+      }
+      headers['Authorization'] = authHeader;
     }
     
     return headers;

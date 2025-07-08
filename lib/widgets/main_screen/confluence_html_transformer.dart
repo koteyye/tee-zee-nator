@@ -162,7 +162,12 @@ class ConfluenceHtmlTransformer {
       final content = match.group(1) ?? '';
       final plantUmlCode = _extractPlainTextBodyWithCdata(content);
       
-      return _generatePlantUmlImage(plantUmlCode);
+      // Обрабатываем PlantUML как код
+      return '''
+<div style="margin: 8px 0;">
+  <div style="background: #F4F5F7; padding: 4px 8px; font-size: 12px; color: #6B778C; border-radius: 4px 4px 0 0;">Код (PlantUML)</div>
+  <pre style="background: #F4F5F7; padding: 12px; margin: 0; border-radius: 0 0 4px 4px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.4;"><code>$plantUmlCode</code></pre>
+</div>''';
     });
   }
   
@@ -225,7 +230,7 @@ class ConfluenceHtmlTransformer {
     return cdataMatch?.group(1)?.trim() ?? body.trim();
   }
   
-  /// Генерирует HTML с кодом PlantUML диаграммы
+  /// Генерирует HTML с кодом PlantUML диаграммы (устаревший метод, не используется)
   static String _generatePlantUmlImage(String plantUmlCode) {
     if (plantUmlCode.isEmpty) {
       return '''

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/template_service.dart';
 import '../services/config_service.dart';
 import '../services/llm_service.dart';
 import '../models/app_config.dart';
@@ -190,8 +191,8 @@ class _SetupScreenState extends State<SetupScreen> {
         provider: 'llmops',
         llmopsBaseUrl: _llmopsUrlController.text.trim(),
         llmopsModel: _selectedModel!.id, // Используем выбранную модель
-        llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty 
-            ? null 
+        llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty
+            ? null
             : _llmopsAuthController.text.trim(),
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
@@ -200,7 +201,30 @@ class _SetupScreenState extends State<SetupScreen> {
     }
     
     final configService = Provider.of<ConfigService>(context, listen: false);
+    final llmService = Provider.of<LLMService>(context, listen: false);
+    final templateService = Provider.of<TemplateService>(context, listen: false);
+    
+    // Сохраняем конфигурацию
     await configService.saveConfig(config);
+    
+    // Инициализируем провайдера с новой конфигурацией
+    llmService.initializeProvider(config);
+    
+    // Предварительно загружаем модели
+    try {
+      await llmService.getModels();
+    } catch (e) {
+      print('Ошибка при загрузке моделей: $e');
+    }
+    
+    // Инициализируем шаблоны
+    try {
+      if (!templateService.isInitialized) {
+        await templateService.init();
+      }
+    } catch (e) {
+      print('Ошибка при инициализации шаблонов: $e');
+    }
     
     if (!mounted) return;
     Navigator.of(context).pushReplacement(

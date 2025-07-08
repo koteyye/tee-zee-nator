@@ -6,6 +6,7 @@ import '../services/template_service.dart';
 import '../services/file_service.dart';
 import '../models/generation_history.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
+import '../widgets/main_screen/html_processor.dart';
 import 'setup_screen.dart';
 import 'template_management_screen.dart';
 
@@ -51,6 +52,7 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _loadModels() async {
     final configService = Provider.of<ConfigService>(context, listen: false);
     final llmService = Provider.of<LLMService>(context, listen: false);
+    final templateService = Provider.of<TemplateService>(context, listen: false);
     
     // Инициализируем конфигурацию, если она не загружена
     if (configService.config == null) {
@@ -58,7 +60,24 @@ class _MainScreenState extends State<MainScreen> {
     }
     
     if (configService.config != null) {
+      // Инициализируем провайдера
       llmService.initializeProvider(configService.config!);
+      
+      // Загружаем модели
+      try {
+        await llmService.getModels();
+      } catch (e) {
+        print('Ошибка при загрузке моделей: $e');
+      }
+      
+      // Инициализируем шаблоны, если они еще не инициализированы
+      if (!templateService.isInitialized) {
+        try {
+          await templateService.init();
+        } catch (e) {
+          print('Ошибка при инициализации шаблонов: $e');
+        }
+      }
     }
   }
   

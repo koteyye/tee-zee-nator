@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'html_content_viewer.dart';
+import 'confluence_html_transformer.dart';
 
 class ResultPanel extends StatelessWidget {
   final String generatedTz;
@@ -24,7 +26,27 @@ class ResultPanel extends StatelessWidget {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const Spacer(),
-            if (generatedTz.isNotEmpty)
+            if (generatedTz.isNotEmpty) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Преобразуем HTML в рендер-вариант перед копированием
+                  final transformedHtml = ConfluenceHtmlTransformer.transformForRender(generatedTz);
+                  Clipboard.setData(ClipboardData(text: transformedHtml));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('ТЗ скопировано в буфер обмена'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                label: const Text('Скопировать в буфер'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+              ),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: onSave,
                 icon: const Icon(Icons.save, size: 16),
@@ -33,6 +55,7 @@ class ResultPanel extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
+            ],
           ],
         ),
         const SizedBox(height: 8),

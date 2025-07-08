@@ -2,7 +2,7 @@ name: tee_zee_nator
 description: Генератор технических заданий с использованием OpenAI API
 publish_to: 'none'
 
-version: 1.0.1+1
+version: 1.1.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
