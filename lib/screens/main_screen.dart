@@ -171,33 +171,40 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.description, size: 20),
-            label: const Text('Шаблоны ТЗ'),
-            onPressed: _openTemplateManagement,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.black87,
-            ),
+    return Consumer<ConfigService>(
+      builder: (context, configService, child) {
+        // Если конфиг не загружен, перенаправляем на экран настроек
+        if (configService.config == null) {
+          return const SetupScreen();
+        }
+        
+        return Scaffold(
+          appBar: AppBar(
+            actions: [
+              TextButton.icon(
+                icon: const Icon(Icons.description, size: 20),
+                label: const Text('Шаблоны ТЗ'),
+                onPressed: _openTemplateManagement,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                icon: const Icon(Icons.settings, size: 20),
+                label: const Text('Настройки'),
+                onPressed: _openSettings,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
-          const SizedBox(width: 8),
-          TextButton.icon(
-            icon: const Icon(Icons.settings, size: 20),
-            label: const Text('Настройки'),
-            onPressed: _openSettings,
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.black87,
-            ),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          body: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Настройки модели
             const ModelSettingsCard(),
@@ -250,6 +257,8 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
       ),
+    );
+      },
     );
   }
 }

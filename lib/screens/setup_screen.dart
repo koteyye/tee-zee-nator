@@ -18,8 +18,13 @@ class _SetupScreenState extends State<SetupScreen> {
   final _urlController = TextEditingController(text: 'https://api.openai.com/v1');
   final _tokenController = TextEditingController();
   final _llmopsUrlController = TextEditingController(text: 'http://localhost:11434');
-  final _llmopsModelController = TextEditingController(text: 'llama3');
   final _llmopsAuthController = TextEditingController();
+  
+  // Добавляем FocusNode'ы для управления фокусом
+  final _urlFocusNode = FocusNode();
+  final _tokenFocusNode = FocusNode();
+  final _llmopsUrlFocusNode = FocusNode();
+  final _llmopsAuthFocusNode = FocusNode();
   
   String _selectedProvider = 'openai';
   bool _isTestingConnection = false;
@@ -39,25 +44,27 @@ class _SetupScreenState extends State<SetupScreen> {
     _urlController.dispose();
     _tokenController.dispose();
     _llmopsUrlController.dispose();
-    _llmopsModelController.dispose();
     _llmopsAuthController.dispose();
+    
+    _urlFocusNode.dispose();
+    _tokenFocusNode.dispose();
+    _llmopsUrlFocusNode.dispose();
+    _llmopsAuthFocusNode.dispose();
+    
     super.dispose();
   }
 
   Future<void> _loadCurrentConfig() async {
     final configService = Provider.of<ConfigService>(context, listen: false);
     final config = configService.config;
-    
     if (config != null) {
       setState(() {
         _selectedProvider = config.provider;
-        
         if (_selectedProvider == 'openai') {
           _urlController.text = config.apiUrl;
           _tokenController.text = config.apiToken;
         } else {
           _llmopsUrlController.text = config.llmopsBaseUrl ?? 'http://localhost:11434';
-          _llmopsModelController.text = config.llmopsModel ?? 'llama3';
           _llmopsAuthController.text = config.llmopsAuthHeader ?? '';
         }
       });
@@ -66,6 +73,9 @@ class _SetupScreenState extends State<SetupScreen> {
   
   Future<void> _testConnection() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    // Снимаем фокус с активного поля
+    FocusScope.of(context).unfocus();
     
     setState(() {
       _isTestingConnection = true;
@@ -110,27 +120,40 @@ class _SetupScreenState extends State<SetupScreen> {
           throw Exception(llmService.error ?? 'Не удалось подключиться к OpenAI API');
         }
       } else {
-        // Для LLMOps просто проверяем соединение с простым запросом
+        // Для LLMOps используем такой же подход с получением моделей
         final testConfig = AppConfig(
           apiUrl: 'https://api.openai.com/v1', // Заглушка для обязательных полей
           apiToken: 'test-token', // Заглушка для обязательных полей
           provider: 'llmops',
           llmopsBaseUrl: _llmopsUrlController.text.trim(),
-          llmopsModel: _llmopsModelController.text.trim(),
+          llmopsModel: 'default', // Временная заглушка, будет заменена на выбранную модель
           llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty 
               ? null 
               : _llmopsAuthController.text.trim(),
-          defaultModel: _llmopsModelController.text.trim(),
-          reviewModel: _llmopsModelController.text.trim(),
+          defaultModel: 'default',
+          reviewModel: 'default',
         );
         
         llmService.initializeProvider(testConfig);
         final success = await llmService.testConnection();
         
         if (success) {
+          final models = await llmService.getModels();
+          final llmopsModels = models.map((id) => OpenAIModel(
+            id: id, 
+            object: 'model',
+            created: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            ownedBy: 'llmops'
+          )).toList();
+          
           setState(() {
             _isTestingConnection = false;
             _connectionSuccess = true;
+            _availableModels = llmopsModels;
+            // Для LLMOps выбираем первую доступную модель по умолчанию
+            if (llmopsModels.isNotEmpty) {
+              _selectedModel = llmopsModels.first;
+            }
           });
         } else {
           throw Exception(llmService.error ?? 'Не удалось подключиться к LLMOps серверу');
@@ -160,17 +183,18 @@ class _SetupScreenState extends State<SetupScreen> {
         selectedTemplateId: null,
       );
     } else {
+      if (_selectedModel == null) return;
       config = AppConfig(
         apiUrl: 'https://api.openai.com/v1', // Заглушка для обязательных полей
         apiToken: 'test-token', // Заглушка для обязательных полей
         provider: 'llmops',
         llmopsBaseUrl: _llmopsUrlController.text.trim(),
-        llmopsModel: _llmopsModelController.text.trim(),
+        llmopsModel: _selectedModel!.id, // Используем выбранную модель
         llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty 
             ? null 
             : _llmopsAuthController.text.trim(),
-        defaultModel: _llmopsModelController.text.trim(),
-        reviewModel: _llmopsModelController.text.trim(),
+        defaultModel: _selectedModel!.id,
+        reviewModel: _selectedModel!.id,
         selectedTemplateId: null,
       );
     }
@@ -190,7 +214,7 @@ class _SetupScreenState extends State<SetupScreen> {
       appBar: AppBar(
         title: const Text('Настройка подключения'),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
@@ -216,10 +240,15 @@ class _SetupScreenState extends State<SetupScreen> {
                 ],
                 onChanged: (String? newValue) {
                   if (newValue != null) {
+                    // Снимаем фокус с текущих полей перед переключением
+                    FocusScope.of(context).unfocus();
+                    
                     setState(() {
                       _selectedProvider = newValue;
                       _connectionSuccess = false;
                       _errorMessage = null;
+                      _availableModels = [];
+                      _selectedModel = null;
                     });
                   }
                 },
@@ -237,6 +266,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 // URL поле
                 TextFormField(
                   controller: _urlController,
+                  focusNode: _urlFocusNode,
                   decoration: const InputDecoration(
                     labelText: 'OpenAI API URL',
                     hintText: 'https://api.openai.com/v1',
@@ -256,6 +286,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 // Token поле
                 TextFormField(
                   controller: _tokenController,
+                  focusNode: _tokenFocusNode,
                   decoration: const InputDecoration(
                     labelText: 'API Token',
                     hintText: 'sk-...',
@@ -281,6 +312,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 // Base URL поле
                 TextFormField(
                   controller: _llmopsUrlController,
+                  focusNode: _llmopsUrlFocusNode,
                   decoration: const InputDecoration(
                     labelText: 'Base URL',
                     hintText: 'http://localhost:11434',
@@ -297,25 +329,10 @@ class _SetupScreenState extends State<SetupScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Model поле
-                TextFormField(
-                  controller: _llmopsModelController,
-                  decoration: const InputDecoration(
-                    labelText: 'Название модели',
-                    hintText: 'llama3',
-                  ),
-                  validator: (value) {
-                    if (_selectedProvider == 'llmops' && (value == null || value.isEmpty)) {
-                      return 'Введите название модели';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                
                 // Authorization Header (необязательно)
                 TextFormField(
                   controller: _llmopsAuthController,
+                  focusNode: _llmopsAuthFocusNode,
                   decoration: const InputDecoration(
                     labelText: 'Authorization Header (необязательно)',
                     hintText: 'Bearer your-token',
@@ -395,21 +412,22 @@ class _SetupScreenState extends State<SetupScreen> {
                 ),
                 const SizedBox(height: 8),
                 
-                // Список моделей (только для OpenAI)
-                if (_selectedProvider == 'openai' && _connectionSuccess && _availableModels.isNotEmpty)
+                // Список моделей (для OpenAI и LLMOps)
+                if (_connectionSuccess && _availableModels.isNotEmpty)
                   Container(
-                    height: 200,
+                    constraints: const BoxConstraints(maxHeight: 250),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: ListView.builder(
+                      shrinkWrap: true,
                       itemCount: _availableModels.length,
                       itemBuilder: (context, index) {
                         final model = _availableModels[index];
                         return RadioListTile<OpenAIModel>(
                           title: Text(model.id),
-                          subtitle: Text('Owner: ${model.ownedBy}'),
+                          subtitle: Text('Provider: ${model.ownedBy}'),
                           value: model,
                           groupValue: _selectedModel,
                           onChanged: (OpenAIModel? value) {
@@ -430,7 +448,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   children: [
                     // Основная кнопка продолжения
                     ElevatedButton(
-                      onPressed: _connectionSuccess && (_selectedProvider != 'openai' || _selectedModel != null) 
+                      onPressed: _connectionSuccess && _selectedModel != null 
                           ? _saveAndProceed 
                           : null,
                       child: const Text('Приступить к работе'),

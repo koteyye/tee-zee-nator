@@ -32,7 +32,7 @@ class AppConfig {
   
   @HiveField(8)
   final String? llmopsAuthHeader; // Authorization header для LLMOps
-  
+
   AppConfig({
     required this.apiUrl,
     required this.apiToken,

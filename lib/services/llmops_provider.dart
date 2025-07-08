@@ -46,22 +46,15 @@ class LLMOpsProvider implements LLMProvider {
       _isLoading = true;
       _error = null;
       
-      // Тестируем соединение простым запросом
-      final response = await _dio.post(
-        '$_baseUrl/generate',
-        data: {
-          'model': _model,
-          'prompt': 'test',
-          'stream': false,
-        },
+      // Тестируем соединение через /models endpoint
+      final response = await _dio.get(
+        '$_baseUrl/models',
         options: Options(headers: _headers),
       );
       
-      if (response.statusCode == 200 && response.data['response'] != null) {
-        // Если есть модель в конфигурации, добавляем её в список
-        if (_config.llmopsModel != null) {
-          _availableModels = [_config.llmopsModel!];
-        }
+      if (response.statusCode == 200) {
+        // Загружаем доступные модели
+        await getModels();
         return true;
       }
       return false;
@@ -79,8 +72,25 @@ class LLMOpsProvider implements LLMProvider {
       _isLoading = true;
       _error = null;
       
-      // LLMOps может не иметь endpoint для получения списка моделей
-      // Возвращаем модель из конфигурации или дефолтную
+      // Используем endpoint /models
+      final response = await _dio.get(
+        '$_baseUrl/models',
+        options: Options(headers: _headers),
+      );
+      
+      if (response.statusCode == 200) {
+        final responseData = response.data;
+        if (responseData['data'] != null) {
+          // Парсим список моделей в OpenAI формате
+          final models = (responseData['data'] as List)
+              .map((model) => model['id'] as String)
+              .toList();
+          _availableModels = models;
+          return models;
+        }
+      }
+      
+      // Если эндпоинт недоступен, используем модель из конфигурации
       if (_config.llmopsModel != null) {
         _availableModels = [_config.llmopsModel!];
       } else {
@@ -89,8 +99,14 @@ class LLMOpsProvider implements LLMProvider {
       
       return _availableModels;
     } catch (e) {
-      _error = 'Ошибка при получении моделей: $e';
-      return [];
+      print('Ошибка при получении моделей: $e');
+      // Fallback к модели из конфигурации
+      if (_config.llmopsModel != null) {
+        _availableModels = [_config.llmopsModel!];
+      } else {
+        _availableModels = ['llama3'];
+      }
+      return _availableModels;
     } finally {
       _isLoading = false;
     }
@@ -108,14 +124,17 @@ class LLMOpsProvider implements LLMProvider {
       _isLoading = true;
       _error = null;
       
-      // Объединяем системный и пользовательский промты
-      final combinedPrompt = '$systemPrompt\n\n$userPrompt';
-      
+      // Используем endpoint /chat/completions
       final response = await _dio.post(
-        '$_baseUrl/generate',
+        '$_baseUrl/chat/completions',
         data: {
           'model': model ?? _model,
-          'prompt': combinedPrompt,
+          'messages': [
+            {'role': 'system', 'content': systemPrompt},
+            {'role': 'user', 'content': userPrompt},
+          ],
+          'max_tokens': maxTokens ?? 2000,
+          'temperature': temperature ?? 0.7,
           'stream': false,
         },
         options: Options(headers: _headers),
@@ -123,8 +142,10 @@ class LLMOpsProvider implements LLMProvider {
       
       if (response.statusCode == 200) {
         final responseData = response.data;
-        if (responseData['response'] != null) {
-          return responseData['response'] as String;
+        if (responseData['choices'] != null && 
+            responseData['choices'].isNotEmpty &&
+            responseData['choices'][0]['message'] != null) {
+          return responseData['choices'][0]['message']['content'] as String;
         }
       }
       
