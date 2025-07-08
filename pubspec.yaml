@@ -2,7 +2,7 @@ name: tee_zee_nator
 description: Генератор технических заданий с использованием OpenAI API
 publish_to: 'none'
 
-version: 1.0.1+1
+version: 1.1.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -12,7 +12,7 @@ dependencies:
     sdk: flutter
   # UI
   cupertino_icons: ^1.0.2
-  flutter_markdown: ^0.6.18
+  flutter_html: ^3.0.0-beta.2
   code_text_field: ^1.1.0
   # HTTP
   http: ^1.1.0
@@ -28,6 +28,7 @@ dependencies:
   json_annotation: ^4.8.1
   # Утилиты
   provider: ^6.1.1
+  archive: ^3.4.10
 
 dev_dependencies:
   flutter_test:
@@ -44,6 +45,7 @@ flutter:
     - assets/
     - assets/icons/
     - tz_pattern.md
+    - assets/tz_pattern_confluence.html
 
 flutter_launcher_icons:
   android: false # Отключаем Android, так как у нас desktop приложение

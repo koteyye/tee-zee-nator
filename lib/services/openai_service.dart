@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/services.dart';
 import '../models/openai_model.dart';
 import '../models/chat_message.dart';
 import '../models/app_config.dart';
@@ -10,6 +9,12 @@ class OpenAIService extends ChangeNotifier {
   List<OpenAIModel> _availableModels = [];
   bool _isLoading = false;
   String? _error;
+  
+  // Системный промт для ревью шаблонов
+  static const String TEMPLATE_REVIEW_PROMPT = '''
+Ты главный методолог требований, тебе нужно провести ревью шаблона и выдать все замечания, вопросы (если они есть) и предложения по оптимизации шаблона.
+Обязательно выдели есть ли КРИТИЧЕСКИЕ замечания к шаблону. При наличии критических замечаний введи в ответ текст "[CRITICAL_ALERT]"
+''';
   
   List<OpenAIModel> get availableModels => _availableModels;
   bool get isLoading => _isLoading;
@@ -103,97 +108,144 @@ class OpenAIService extends ChangeNotifier {
     required AppConfig config,
     required String rawRequirements,
     String? changes,
-    bool useBaseTemplate = true,
+    String? templateContent,
   }) async {
     try {
       _setLoading(true);
       _setError(null);
       
-      // Формируем системный промт
-      String systemPrompt;
-      if (useBaseTemplate) {
-        // Загружаем шаблон ТЗ
-        final template = await rootBundle.loadString('tz_pattern.md');
-        systemPrompt = '''You are a Senior System Analyst.
+      // Всегда используем Confluence HTML формат
+      return _generateConfluenceTZ(
+        config: config,
+        rawRequirements: rawRequirements,
+        changes: changes,
+        templateContent: templateContent,
+      );
+    } catch (e) {
+      _setError('Ошибка при генерации ТЗ: $e');
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
 
-Используй следующий шаблон для создания технического задания:
+  Future<String> _generateConfluenceTZ({
+    required AppConfig config,
+    required String rawRequirements,
+    String? changes,
+    String? templateContent,
+  }) async {
+    // Формируем системный промт для Confluence HTML
+    String systemPrompt;
+    if (templateContent != null && templateContent.isNotEmpty) {
+      // Используем предоставленный шаблон
+      systemPrompt = '''Senior System Analyst. Генерируй ТЗ в HTML (Confluence Storage Format).
 
-$template
+Шаблон:
+$templateContent
 
-Ответ должен быть в формате Markdown.
+Обязательные теги: <h1>, <h2>, <p>, <ul>, <li>, <strong>, <table>
+Макросы: <ac:structured-macro ac:name="info|warning|note|panel">
 
----
-ВНИМАНИЕ: Результат должен заканчиваться исключительно Markdown-документом.
-Начни ответ с заголовка "# Техническое задание" и продолжай в формате:
-## 1. Общая информация
-## 2. User Story
-## 3. Критерии приемки
-и так далее.
+Ответ = ТОЛЬКО HTML без объяснений.''';
+    } else {
+      systemPrompt = '''Senior System Analyst. Генерируй ТЗ в HTML (Confluence Storage Format).
 
-После последней строки Markdown (например, последнего заголовка или списка), НЕ добавляй НИЧЕГО:
-- Никаких пояснений или заключений
-- Никаких комментариев или советов
-- Никаких XML-тегов или HTML
-- Никаких фраз типа "Надеюсь, это поможет" или "Если у вас есть вопросы"
+Структура:
+<h1>Техническое задание</h1>
+<h2>1. User Story</h2>
+<h2>2. Контроль версионности</h2>
+<h2>3. Проблематика</h2>
+<h2>4. Критерии приемки</h2>
 
-Ответ — это ТОЛЬКО файл .md, который заканчивается последней строкой технического задания.
----''';
-      } else {
-        systemPrompt = '''You are a Senior System Analyst.
+Обязательные теги: <h1>, <h2>, <p>, <ul>, <li>, <strong>, <table>
+Макросы: <ac:structured-macro ac:name="info|warning|note|panel">
 
-Создай техническое задание на основе предоставленных требований.
-Структурируй информацию логично и понятно.
-Ответ должен быть в формате Markdown.
+Ответ = ТОЛЬКО HTML без объяснений.''';
+    }
+    
+    // Формируем пользовательский промт
+    String userPrompt = 'Создай техническое задание в HTML формате на основе следующих требований:\n\n$rawRequirements';
+    
+    if (changes != null && changes.isNotEmpty) {
+      userPrompt += '\n\nУчти следующие изменения:\n\n$changes';
+    }
+    
+    userPrompt += '\n\nВАЖНО: Верни только HTML-документ в формате Confluence Storage Format. Начинай с <h1>Техническое задание</h1>!';
+    
+    return _sendChatRequest(config, systemPrompt, userPrompt);
+  }
 
----
-ВНИМАНИЕ: Результат должен заканчиваться исключительно Markdown-документом.
-Начни ответ с заголовка "# Техническое задание" и продолжай в формате:
-## 1. Общая информация
-## 2. User Story  
-## 3. Критерии приемки
-## 4. Функциональные требования
-и так далее.
-
-После последней строки Markdown (например, последнего заголовка или списка), НЕ добавляй НИЧЕГО:
-- Никаких пояснений или заключений
-- Никаких комментариев или советов
-- Никаких XML-тегов или HTML
-- Никаких фраз типа "Надеюсь, это поможет" или "Если у вас есть вопросы"
-
-Ответ — это ТОЛЬКО файл .md, который заканчивается последней строкой технического задания.
----''';
+  Future<String> _sendChatRequest(AppConfig config, String systemPrompt, String userPrompt) async {
+    final messages = [
+      ChatMessage(role: 'system', content: systemPrompt),
+      ChatMessage(role: 'user', content: userPrompt),
+    ];
+    
+    print('=== ОТЛАДКА ЗАПРОСА ===');
+    print('Формат: Confluence HTML');
+    print('Системный промт:');
+    print(systemPrompt);
+    print('\nПользовательский промт:');
+    print(userPrompt);
+    print('=== КОНЕЦ ОТЛАДКИ ЗАПРОСА ===');
+    
+    final request = ChatRequest(
+      model: config.defaultModel ?? _availableModels.first.id,
+      messages: messages,
+      maxTokens: 4000,
+      temperature: 0.7,
+    );
+    
+    print('Используемая модель: ${request.model}');
+    print('Количество сообщений: ${messages.length}');
+    
+    final response = await _dio.post(
+      '${config.apiUrl}/chat/completions',
+      data: request.toJson(),
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer ${config.apiToken}',
+          'Content-Type': 'application/json',
+        },
+      ),
+    );
+    
+    if (response.statusCode == 200) {
+      final chatResponse = ChatResponse.fromJson(response.data);
+      if (chatResponse.choices.isNotEmpty) {
+        final responseContent = chatResponse.choices.first.message.content;
+        
+        print('=== ОТЛАДКА ОТВЕТА ===');
+        print('Статус код: ${response.statusCode}');
+        print('Количество вариантов ответа: ${chatResponse.choices.length}');
+        print('Ответ модели:');
+        print(responseContent);
+        print('=== КОНЕЦ ОТЛАДКИ ОТВЕТА ===');
+        
+        return responseContent;
       }
-      
-      // Формируем пользовательский промт
-      String userPrompt = 'Создай техническое задание на основе следующих требований:\n\n$rawRequirements';
-      
-      if (changes != null && changes.isNotEmpty) {
-        userPrompt += '\n\nУчти следующие изменения:\n\n$changes';
-      }
-      
-      userPrompt += '\n\nВАЖНО: Верни только Markdown-документ, начинающийся с "# Техническое задание". Никакого текста после окончания Markdown!';
+    }
+    
+    throw Exception('Пустой ответ от API');
+  }
+  
+  Future<String> reviewTemplate(String templateContent, String modelId, AppConfig config) async {
+    try {
+      _setLoading(true);
+      _setError(null);
       
       final messages = [
-        ChatMessage(role: 'system', content: systemPrompt),
-        ChatMessage(role: 'user', content: userPrompt),
+        ChatMessage(role: 'system', content: TEMPLATE_REVIEW_PROMPT),
+        ChatMessage(role: 'user', content: 'Проведи ревью следующего шаблона технического задания:\n\n$templateContent'),
       ];
       
-      print('=== ОТЛАДКА ЗАПРОСА ===');
-      print('Системный промт:');
-      print(systemPrompt);
-      print('\nПользовательский промт:');
-      print(userPrompt);
-      print('=== КОНЕЦ ОТЛАДКИ ЗАПРОСА ===');
-      
       final request = ChatRequest(
-        model: config.selectedModel ?? _availableModels.first.id,
+        model: modelId,
         messages: messages,
         maxTokens: 4000,
-        temperature: 0.7,
+        temperature: 0.3, // Более низкая температура для аналитических задач
       );
-      
-      print('Используемая модель: ${request.model}');
-      print('Количество сообщений: ${messages.length}');
       
       final response = await _dio.post(
         '${config.apiUrl}/chat/completions',
@@ -209,22 +261,13 @@ $template
       if (response.statusCode == 200) {
         final chatResponse = ChatResponse.fromJson(response.data);
         if (chatResponse.choices.isNotEmpty) {
-          final responseContent = chatResponse.choices.first.message.content;
-          
-          print('=== ОТЛАДКА ОТВЕТА ===');
-          print('Статус код: ${response.statusCode}');
-          print('Количество вариантов ответа: ${chatResponse.choices.length}');
-          print('Ответ модели:');
-          print(responseContent);
-          print('=== КОНЕЦ ОТЛАДКИ ОТВЕТА ===');
-          
-          return responseContent;
+          return chatResponse.choices.first.message.content;
         }
       }
       
-      throw Exception('Пустой ответ от API');
+      throw Exception('Пустой ответ от API при ревью шаблона');
     } catch (e) {
-      _setError('Ошибка при генерации ТЗ: $e');
+      _setError('Ошибка при ревью шаблона: $e');
       rethrow;
     } finally {
       _setLoading(false);
