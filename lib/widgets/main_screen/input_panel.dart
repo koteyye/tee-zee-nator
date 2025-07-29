@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/config_service.dart';
 import '../../models/generation_history.dart';
+import '../../models/output_format.dart';
 
 class InputPanel extends StatelessWidget {
   final TextEditingController rawRequirementsController;
@@ -12,7 +13,7 @@ class InputPanel extends StatelessWidget {
   final String? errorMessage;
   final VoidCallback onGenerate;
   final VoidCallback onClear;
-  final ValueChanged<String> onHistoryItemTap;
+  final ValueChanged<GenerationHistory> onHistoryItemTap;
 
   const InputPanel({
     super.key,
@@ -165,10 +166,41 @@ class InputPanel extends StatelessWidget {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Модель: ${item.model}',
-                        style: const TextStyle(fontSize: 11),
+                      Row(
+                        children: [
+                          Text(
+                            'Модель: ${item.model}',
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: item.format == OutputFormat.markdown 
+                                  ? Colors.blue.shade100 
+                                  : Colors.orange.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: item.format == OutputFormat.markdown 
+                                    ? Colors.blue.shade300 
+                                    : Colors.orange.shade300,
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Text(
+                              item.format.displayName,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: item.format == OutputFormat.markdown 
+                                    ? Colors.blue.shade700 
+                                    : Colors.orange.shade700,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         item.rawRequirements.length > 50
                             ? '${item.rawRequirements.substring(0, 50)}...'
@@ -177,7 +209,7 @@ class InputPanel extends StatelessWidget {
                       ),
                     ],
                   ),
-                  onTap: () => onHistoryItemTap(item.generatedTz),
+                  onTap: () => onHistoryItemTap(item),
                 );
               },
             ),

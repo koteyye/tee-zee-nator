@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/app_config.dart';
 import 'models/template.dart';
+import 'models/output_format.dart';
 import 'services/config_service.dart';
 import 'services/template_service.dart';
 import 'services/llm_service.dart';
@@ -21,6 +22,7 @@ void main() async {
   // Hive.registerAdapter(LegacyAppConfigV2Adapter()); // typeId = 2 (промежуточная версия)
   Hive.registerAdapter(AppConfigAdapter()); // typeId = 10 (новая версия)
   Hive.registerAdapter(TemplateAdapter()); // typeId = 3
+  Hive.registerAdapter(OutputFormatAdapter()); // typeId = 11
   
   runApp(MyApp());
 }

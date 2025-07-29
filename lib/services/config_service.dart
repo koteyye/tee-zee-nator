@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../models/app_config.dart';
+import '../models/output_format.dart';
 
 class ConfigService extends ChangeNotifier {
   static const String _boxName = 'config_v3_clean'; // Полностью новый бокс без legacy данных
@@ -87,6 +88,7 @@ class ConfigService extends ChangeNotifier {
         llmopsBaseUrl: config.llmopsBaseUrl,
         llmopsModel: config.llmopsModel,
         llmopsAuthHeader: config.llmopsAuthHeader,
+        preferredFormat: config.preferredFormat,
       );
       
       _config = newConfig;
@@ -115,6 +117,13 @@ class ConfigService extends ChangeNotifier {
   Future<void> updateSelectedModel(String model) async {
     if (_config != null) {
       final updatedConfig = _config!.copyWith(defaultModel: model);
+      await saveConfig(updatedConfig);
+    }
+  }
+
+  Future<void> updatePreferredFormat(OutputFormat format) async {
+    if (_config != null) {
+      final updatedConfig = _config!.copyWith(preferredFormat: format);
       await saveConfig(updatedConfig);
     }
   }

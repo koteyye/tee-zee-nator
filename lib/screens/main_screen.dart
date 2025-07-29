@@ -5,8 +5,12 @@ import '../services/llm_service.dart';
 import '../services/template_service.dart';
 import '../services/file_service.dart';
 import '../models/generation_history.dart';
+import '../models/output_format.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
+import '../widgets/main_screen/format_selector.dart';
+import '../widgets/main_screen/markdown_processor.dart';
 import '../widgets/main_screen/html_processor.dart';
+import '../widgets/main_screen/content_processor.dart';
 import 'setup_screen.dart';
 import 'template_management_screen.dart';
 
@@ -22,10 +26,11 @@ class _MainScreenState extends State<MainScreen> {
   final _changesController = TextEditingController();
   
   String _generatedTz = '';
-  String _originalHtml = ''; // Оригинальный HTML для экспорта
+  String _originalContent = ''; // Оригинальный контент для экспорта
   final List<GenerationHistory> _history = [];
   bool _isGenerating = false;
   String? _errorMessage;
+  OutputFormat _selectedFormat = OutputFormat.markdown; // Default to Markdown
   
   @override
   void initState() {
@@ -60,6 +65,11 @@ class _MainScreenState extends State<MainScreen> {
     }
     
     if (configService.config != null) {
+      // Load format preference from config
+      setState(() {
+        _selectedFormat = configService.config!.preferredFormat;
+      });
+      
       // Инициализируем провайдера
       llmService.initializeProvider(configService.config!);
       
@@ -78,6 +88,40 @@ class _MainScreenState extends State<MainScreen> {
           print('Ошибка при инициализации шаблонов: $e');
         }
       }
+    }
+  }
+  
+  /// Handles format selection changes and persists preference
+  Future<void> _onFormatChanged(OutputFormat format) async {
+    if (format == _selectedFormat) return;
+    
+    setState(() {
+      _selectedFormat = format;
+    });
+    
+    // Persist format preference to config
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    try {
+      await configService.updatePreferredFormat(format);
+    } catch (e) {
+      print('Ошибка при сохранении предпочтения формата: $e');
+      // Show error to user but don't revert the UI change
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Не удалось сохранить предпочтение формата: $e'),
+          backgroundColor: Colors.orange.shade600,
+        ),
+      );
+    }
+  }
+  
+  /// Returns appropriate content processor for the given format
+  ContentProcessor _getProcessorForFormat(OutputFormat format) {
+    switch (format) {
+      case OutputFormat.markdown:
+        return MarkdownProcessor();
+      case OutputFormat.confluence:
+        return HtmlProcessor();
     }
   }
   
@@ -105,24 +149,28 @@ class _MainScreenState extends State<MainScreen> {
       final templateService = Provider.of<TemplateService>(context, listen: false);
       final activeTemplate = await templateService.getActiveTemplate();
       
+      // Generate content using selected format
       final rawResponse = await llmService.generateTZ(
         rawRequirements: _rawRequirementsController.text,
         changes: _changesController.text.isNotEmpty ? _changesController.text : null,
         templateContent: activeTemplate?.content,
+        format: _selectedFormat, // Pass selected format
       );
       
-      // Извлекаем HTML-документ из ответа
-      final extractedContent = HtmlProcessor.extractHtml(rawResponse);
+      // Use appropriate processor based on selected format
+      final processor = _getProcessorForFormat(_selectedFormat);
+      final extractedContent = processor.extractContent(rawResponse);
       
       setState(() {
-        _originalHtml = extractedContent; // Сохраняем оригинальный HTML
-        _generatedTz = extractedContent; // Для отображения используем тот же HTML
+        _originalContent = extractedContent; // Сохраняем оригинальный контент
+        _generatedTz = extractedContent; // Для отображения используем тот же контент
         _history.insert(0, GenerationHistory(
           rawRequirements: _rawRequirementsController.text,
           changes: _changesController.text.isNotEmpty ? _changesController.text : null,
           generatedTz: extractedContent,
           timestamp: DateTime.now(),
           model: configService.config!.defaultModel ?? 'unknown',
+          format: _selectedFormat,
         ));
       });
     } catch (e) {
@@ -137,14 +185,15 @@ class _MainScreenState extends State<MainScreen> {
   }
   
   Future<void> _saveFile() async {
-    if (_originalHtml.isEmpty) return;
+    if (_originalContent.isEmpty) return;
     
     try {
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final filename = 'TZ_$timestamp';
+      // Use the enhanced file service with format-specific handling and validation
+      final filePath = await FileService.saveFileWithFormat(
+        content: _originalContent,
+        format: _selectedFormat,
+      );
       
-      // Сохраняем оригинальный HTML документ (без преобразований)
-      final filePath = await FileService.saveFile(_originalHtml, filename);
       if (filePath != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -182,7 +231,7 @@ class _MainScreenState extends State<MainScreen> {
       _rawRequirementsController.clear();
       _changesController.clear();
       _generatedTz = '';
-      _originalHtml = '';
+      _originalContent = '';
       _history.clear();
       _errorMessage = null;
     });
@@ -228,6 +277,13 @@ class _MainScreenState extends State<MainScreen> {
             // Настройки модели
             const ModelSettingsCard(),
             const SizedBox(height: 16),
+            
+            // Format selection
+            FormatSelector(
+              selectedFormat: _selectedFormat,
+              onFormatChanged: _onFormatChanged,
+            ),
+            const SizedBox(height: 16),
               
             // Основной контент
             Expanded(
@@ -246,10 +302,11 @@ class _MainScreenState extends State<MainScreen> {
                       errorMessage: _errorMessage,
                       onGenerate: _generateTZ,
                       onClear: _clearAll,
-                      onHistoryItemTap: (generatedTz) {
+                      onHistoryItemTap: (historyItem) {
                         setState(() {
-                          _generatedTz = generatedTz;
-                          _originalHtml = generatedTz; // Также обновляем оригинальный HTML
+                          _generatedTz = historyItem.generatedTz;
+                          _originalContent = historyItem.generatedTz; // Также обновляем оригинальный контент
+                          _selectedFormat = historyItem.format; // Restore format context
                         });
                       },
                     ),

@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../../services/config_service.dart';
 import '../../services/llm_service.dart';
 import '../../services/template_service.dart';
+import '../../models/output_format.dart';
 import '../template_management/isolated_template_selector.dart';
+import 'format_selector.dart';
 
 class ModelSettingsCard extends StatelessWidget {
   const ModelSettingsCard({super.key});
@@ -35,6 +37,9 @@ class ModelSettingsCard extends StatelessWidget {
                 const SizedBox(height: 16),
                 // Вторая строка: селектор шаблонов
                 _buildTemplateSection(templateService),
+                const SizedBox(height: 16),
+                // Третья строка: селектор формата
+                _buildFormatSection(configService),
               ],
             ),
           ),
@@ -113,14 +118,7 @@ class ModelSettingsCard extends StatelessWidget {
             },
             tooltip: 'Обновить список моделей',
           ),
-        const SizedBox(width: 16),
-        const Text('Формат: Confluence HTML', 
-          style: TextStyle(
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-            color: Colors.blue,
-          ),
-        ),
+
       ],
     );
   }
@@ -156,6 +154,15 @@ class ModelSettingsCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFormatSection(ConfigService configService) {
+    return FormatSelector(
+      selectedFormat: configService.config?.preferredFormat ?? OutputFormat.defaultFormat,
+      onFormatChanged: (OutputFormat newFormat) {
+        configService.updatePreferredFormat(newFormat);
+      },
     );
   }
 }

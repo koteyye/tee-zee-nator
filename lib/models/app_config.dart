@@ -1,5 +1,6 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'output_format.dart';
 
 part 'app_config.g.dart';
 
@@ -32,6 +33,9 @@ class AppConfig {
   
   @HiveField(8)
   final String? llmopsAuthHeader; // Authorization header для LLMOps
+  
+  @HiveField(9)
+  final OutputFormat preferredFormat; // Предпочитаемый формат вывода
 
   AppConfig({
     required this.apiUrl,
@@ -43,6 +47,7 @@ class AppConfig {
     this.llmopsBaseUrl,
     this.llmopsModel,
     this.llmopsAuthHeader,
+    this.preferredFormat = OutputFormat.markdown, // По умолчанию Markdown
   });
   
   factory AppConfig.fromJson(Map<String, dynamic> json) => _$AppConfigFromJson(json);
@@ -60,6 +65,7 @@ class AppConfig {
       llmopsBaseUrl: map[6] as String?,
       llmopsModel: map[7] as String?,
       llmopsAuthHeader: map[8] as String?,
+      preferredFormat: map[9] as OutputFormat? ?? OutputFormat.markdown, // По умолчанию Markdown для старых конфигураций
       // Игнорируем старое поле useConfluenceFormat - теперь всегда используем Confluence
     );
   }
@@ -74,6 +80,7 @@ class AppConfig {
     String? llmopsBaseUrl,
     String? llmopsModel,
     String? llmopsAuthHeader,
+    OutputFormat? preferredFormat,
   }) {
     return AppConfig(
       apiUrl: apiUrl ?? this.apiUrl,
@@ -85,6 +92,7 @@ class AppConfig {
       llmopsBaseUrl: llmopsBaseUrl ?? this.llmopsBaseUrl,
       llmopsModel: llmopsModel ?? this.llmopsModel,
       llmopsAuthHeader: llmopsAuthHeader ?? this.llmopsAuthHeader,
+      preferredFormat: preferredFormat ?? this.preferredFormat,
     );
   }
 }
