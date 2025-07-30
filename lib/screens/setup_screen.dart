@@ -5,6 +5,7 @@ import '../services/config_service.dart';
 import '../services/llm_service.dart';
 import '../models/app_config.dart';
 import '../models/openai_model.dart';
+import '../models/output_format.dart';
 import 'main_screen.dart';
 
 class SetupScreen extends StatefulWidget {
@@ -28,6 +29,7 @@ class _SetupScreenState extends State<SetupScreen> {
   final _llmopsAuthFocusNode = FocusNode();
   
   String _selectedProvider = 'openai';
+  OutputFormat _selectedFormat = OutputFormat.defaultFormat;
   bool _isTestingConnection = false;
   bool _connectionSuccess = false;
   String? _errorMessage;
@@ -61,6 +63,7 @@ class _SetupScreenState extends State<SetupScreen> {
     if (config != null) {
       setState(() {
         _selectedProvider = config.provider;
+        _selectedFormat = config.preferredFormat;
         if (_selectedProvider == 'openai') {
           _urlController.text = config.apiUrl;
           _tokenController.text = config.apiToken;
@@ -182,6 +185,7 @@ class _SetupScreenState extends State<SetupScreen> {
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
         selectedTemplateId: null,
+        preferredFormat: _selectedFormat,
       );
     } else {
       if (_selectedModel == null) return;
@@ -197,6 +201,7 @@ class _SetupScreenState extends State<SetupScreen> {
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
         selectedTemplateId: null,
+        preferredFormat: _selectedFormat,
       );
     }
     
@@ -276,6 +281,37 @@ class _SetupScreenState extends State<SetupScreen> {
                     });
                   }
                 },
+              ),
+              const SizedBox(height: 24),
+              
+              // Выбор формата вывода
+              const Text(
+                'Предпочитаемый формат вывода',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  children: OutputFormat.values.map((format) {
+                    return RadioListTile<OutputFormat>(
+                      title: Text(format.displayName),
+                      subtitle: Text('Файлы: .${format.fileExtension}'),
+                      value: format,
+                      groupValue: _selectedFormat,
+                      onChanged: (OutputFormat? value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedFormat = value;
+                          });
+                        }
+                      },
+                    );
+                  }).toList(),
+                ),
               ),
               const SizedBox(height: 24),
               

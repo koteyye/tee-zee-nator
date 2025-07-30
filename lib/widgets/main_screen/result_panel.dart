@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import '../../services/config_service.dart';
+import '../../models/output_format.dart';
 import 'html_content_viewer.dart';
 import 'confluence_html_transformer.dart';
 
@@ -47,13 +51,20 @@ class ResultPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: onSave,
-                icon: const Icon(Icons.save, size: 16),
-                label: const Text('Сохранить .html'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
+              Consumer<ConfigService>(
+                builder: (context, configService, child) {
+                  final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+                  final extension = format.fileExtension;
+                  
+                  return ElevatedButton.icon(
+                    onPressed: onSave,
+                    icon: const Icon(Icons.save, size: 16),
+                    label: Text('Сохранить .$extension'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  );
+                },
               ),
             ],
           ],
@@ -105,7 +116,79 @@ class ResultPanel extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: HtmlContentViewer(htmlContent: generatedTz),
+      child: Consumer<ConfigService>(
+        builder: (context, configService, child) {
+          final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+          
+          if (format == OutputFormat.markdown) {
+            return _buildMarkdownViewer();
+          } else {
+            return HtmlContentViewer(htmlContent: generatedTz);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildMarkdownViewer() {
+    return Markdown(
+      data: generatedTz,
+      padding: const EdgeInsets.all(16.0),
+      styleSheet: MarkdownStyleSheet(
+        h1: const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
+        h2: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        h3: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+        p: const TextStyle(
+          fontSize: 14,
+          height: 1.5,
+          color: Colors.black87,
+        ),
+        code: TextStyle(
+          backgroundColor: Colors.grey.shade100,
+          fontFamily: 'monospace',
+          fontSize: 13,
+        ),
+        codeblockDecoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        blockquote: TextStyle(
+          color: Colors.grey.shade700,
+          fontStyle: FontStyle.italic,
+        ),
+        blockquoteDecoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          border: Border(
+            left: BorderSide(
+              color: Colors.grey.shade400,
+              width: 4,
+            ),
+          ),
+        ),
+        listBullet: const TextStyle(
+          color: Colors.black87,
+        ),
+        tableHead: const TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+        tableBorder: TableBorder.all(
+          color: Colors.grey.shade300,
+          width: 1,
+        ),
+      ),
     );
   }
 }

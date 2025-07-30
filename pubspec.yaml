@@ -12,7 +12,8 @@ dependencies:
     sdk: flutter
   # UI
   cupertino_icons: ^1.0.2
-  flutter_html: ^3.0.0-beta.2
+  flutter_html: ^3.0.0-alpha.6
+  flutter_markdown: ^0.6.18
   code_text_field: ^1.1.0
   # HTTP
   http: ^1.1.0

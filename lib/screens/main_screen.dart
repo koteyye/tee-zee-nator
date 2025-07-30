@@ -7,7 +7,6 @@ import '../services/file_service.dart';
 import '../models/generation_history.dart';
 import '../models/output_format.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
-import '../widgets/main_screen/format_selector.dart';
 import '../widgets/main_screen/markdown_processor.dart';
 import '../widgets/main_screen/html_processor.dart';
 import '../widgets/main_screen/content_processor.dart';
@@ -246,6 +245,15 @@ class _MainScreenState extends State<MainScreen> {
           return const SetupScreen();
         }
         
+        // Обновляем выбранный формат из конфигурации
+        if (_selectedFormat != configService.config!.preferredFormat) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            setState(() {
+              _selectedFormat = configService.config!.preferredFormat;
+            });
+          });
+        }
+        
         return Scaffold(
           appBar: AppBar(
             actions: [
@@ -278,12 +286,7 @@ class _MainScreenState extends State<MainScreen> {
             const ModelSettingsCard(),
             const SizedBox(height: 16),
             
-            // Format selection
-            FormatSelector(
-              selectedFormat: _selectedFormat,
-              onFormatChanged: _onFormatChanged,
-            ),
-            const SizedBox(height: 16),
+
               
             // Основной контент
             Expanded(

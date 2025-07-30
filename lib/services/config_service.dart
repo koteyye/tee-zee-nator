@@ -20,6 +20,11 @@ class ConfigService extends ChangeNotifier {
       // Пытаемся прочитать конфигурацию
       try {
         _config = _box!.get(_configKey);
+        
+        // Выполняем миграцию для существующих конфигураций без format preference
+        if (_config != null) {
+          _config = _migrateConfigIfNeeded(_config!);
+        }
       } catch (e) {
         print('Ошибка при чтении конфига, возможно старый формат: $e');
         // Если не можем прочитать конфиг, очищаем и создаем новый
@@ -44,6 +49,65 @@ class ConfigService extends ChangeNotifier {
     }
   }
   
+  /// Migrates existing configuration to include format preference if missing
+  AppConfig _migrateConfigIfNeeded(AppConfig config) {
+    // Check if the config already has a valid format preference
+    if (_isValidFormat(config.preferredFormat)) {
+      return config;
+    }
+    
+    // Migration: set default format preference for existing configurations
+    print('Migrating configuration: setting default format preference to Markdown');
+    final migratedConfig = config.copyWith(
+      preferredFormat: OutputFormat.defaultFormat,
+    );
+    
+    // Save the migrated configuration
+    _saveMigratedConfig(migratedConfig);
+    
+    return migratedConfig;
+  }
+  
+  /// Validates if the format preference is valid
+  bool _isValidFormat(OutputFormat? format) {
+    if (format == null) return false;
+    return OutputFormat.values.contains(format);
+  }
+  
+  /// Saves migrated configuration asynchronously
+  void _saveMigratedConfig(AppConfig config) {
+    // Save asynchronously to avoid blocking initialization
+    Future.microtask(() async {
+      try {
+        await _box!.put(_configKey, config);
+        print('Configuration migration completed successfully');
+      } catch (e) {
+        print('Error saving migrated configuration: $e');
+      }
+    });
+  }
+  
+  /// Gets the preferred format with fallback to default
+  OutputFormat getPreferredFormat() {
+    if (_config?.preferredFormat != null && _isValidFormat(_config!.preferredFormat)) {
+      return _config!.preferredFormat;
+    }
+    return OutputFormat.defaultFormat;
+  }
+  
+  /// Validates and updates format preference with fallback
+  Future<void> updatePreferredFormatWithValidation(OutputFormat? format) async {
+    final validFormat = format ?? OutputFormat.defaultFormat;
+    
+    if (!_isValidFormat(validFormat)) {
+      print('Invalid format provided, using default: ${OutputFormat.defaultFormat.displayName}');
+      await updatePreferredFormat(OutputFormat.defaultFormat);
+      return;
+    }
+    
+    await updatePreferredFormat(validFormat);
+  }
+
   Future<void> _cleanupAllBoxes() async {
     // Список всех возможных имен боксов для очистки
     final allBoxNames = ['config', 'config_v2', 'config_v3_clean', _boxName];
