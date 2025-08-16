@@ -26,3 +26,8 @@ linter:
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+analyzer:
+  exclude:
+    # Exclude legacy/broken widget copy from static analysis
+    - lib/widgets/main_screen/confluence_publish_modal_original.dart

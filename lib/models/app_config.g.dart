@@ -27,13 +27,14 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       llmopsModel: fields[7] as String?,
       llmopsAuthHeader: fields[8] as String?,
       preferredFormat: fields[9] as OutputFormat,
+      confluenceConfig: fields[10] as ConfluenceConfig?,
     );
   }
 
   @override
   void write(BinaryWriter writer, AppConfig obj) {
     writer
-      ..writeByte(10)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.apiUrl)
       ..writeByte(1)
@@ -53,7 +54,9 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       ..writeByte(8)
       ..write(obj.llmopsAuthHeader)
       ..writeByte(9)
-      ..write(obj.preferredFormat);
+      ..write(obj.preferredFormat)
+      ..writeByte(10)
+      ..write(obj.confluenceConfig);
   }
 
   @override
@@ -84,6 +87,8 @@ AppConfig _$AppConfigFromJson(Map<String, dynamic> json) => AppConfig(
       preferredFormat:
           $enumDecodeNullable(_$OutputFormatEnumMap, json['preferredFormat']) ??
               OutputFormat.markdown,
+      confluenceConfig: _confluenceConfigFromJson(
+          json['confluenceConfig'] as Map<String, dynamic>?),
     );
 
 Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
@@ -97,6 +102,7 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
       'llmopsModel': instance.llmopsModel,
       'llmopsAuthHeader': instance.llmopsAuthHeader,
       'preferredFormat': _$OutputFormatEnumMap[instance.preferredFormat]!,
+      'confluenceConfig': _confluenceConfigToJson(instance.confluenceConfig),
     };
 
 const _$OutputFormatEnumMap = {

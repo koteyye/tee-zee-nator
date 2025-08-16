@@ -67,8 +67,12 @@ class LLMService extends ChangeNotifier {
     // Validate service state
     _validateServiceState();
     
-    // Validate input parameters
-    _validateGenerationParameters(rawRequirements, format, templateContent);
+    // Process Confluence content markers before validation
+    final processedRawRequirements = processConfluenceContent(rawRequirements);
+    final processedChanges = changes != null ? processConfluenceContent(changes) : null;
+    
+    // Validate input parameters with processed content
+    validateGenerationParameters(processedRawRequirements, format, templateContent);
     
     // Generate format-specific system prompt
     String systemPrompt;
@@ -90,10 +94,10 @@ class LLMService extends ChangeNotifier {
       );
     }
     
-    // Формируем пользовательский промт
+    // Формируем пользовательский промт с обработанным контентом
     String userPrompt;
     try {
-      userPrompt = _buildUserPrompt(rawRequirements, changes, format);
+      userPrompt = _buildUserPrompt(processedRawRequirements, processedChanges, format);
     } catch (e) {
       throw LLMResponseValidationException(
         'Ошибка при создании пользовательского промта',
@@ -292,7 +296,8 @@ $templateContent
   }
   
   /// Validates generation parameters
-  void _validateGenerationParameters(String rawRequirements, OutputFormat format, String? templateContent) {
+  @visibleForTesting
+  void validateGenerationParameters(String rawRequirements, OutputFormat format, String? templateContent) {
     if (rawRequirements.isEmpty) {
       throw LLMResponseValidationException(
         'Требования не могут быть пустыми',
@@ -311,13 +316,27 @@ $templateContent
       );
     }
     
-    if (rawRequirements.length > 10000) {
+    // Increased limit to account for processed Confluence content
+    if (rawRequirements.length > 15000) {
       throw LLMResponseValidationException(
         'Требования слишком длинные и могут превысить лимиты AI модели',
         '',
-        recoveryAction: 'Сократите описание требований до 10000 символов или разбейте на несколько частей',
-        technicalDetails: 'Requirements too long: ${rawRequirements.length} characters',
+        recoveryAction: 'Сократите описание требований или количество ссылок на Confluence',
+        technicalDetails: 'Requirements too long: ${rawRequirements.length} characters (including processed Confluence content)',
       );
+    }
+    
+    // Validate Confluence content markers are properly processed
+    if (rawRequirements.contains('@conf-cnt') && rawRequirements.contains('@')) {
+      final unprocessedMarkers = RegExp(r'@conf-cnt\s+.*?@').allMatches(rawRequirements);
+      if (unprocessedMarkers.isNotEmpty) {
+        throw LLMResponseValidationException(
+          'Обнаружены необработанные маркеры Confluence контента',
+          '',
+          recoveryAction: 'Попробуйте повторить генерацию. Возможно, произошла ошибка при обработке ссылок Confluence',
+          technicalDetails: 'Unprocessed @conf-cnt markers found: ${unprocessedMarkers.length}',
+        );
+      }
     }
     
     if (!OutputFormat.values.contains(format)) {
@@ -499,6 +518,81 @@ $templateContent
     }
   }
   
+  /// Processes Confluence content markers in text
+  /// 
+  /// Replaces @conf-cnt markers with actual content for LLM processing
+  /// Validates content format and prevents malformed requests
+  @visibleForTesting
+  String processConfluenceContent(String text) {
+    if (text.isEmpty) return text;
+    
+    // Pattern to match @conf-cnt content@ markers
+    final confluenceMarkerPattern = RegExp(
+      r'@conf-cnt\s+(.*?)@',
+      multiLine: true,
+      dotAll: true,
+    );
+    
+    // Check if text contains Confluence markers
+    if (!confluenceMarkerPattern.hasMatch(text)) {
+      return text; // No Confluence content to process
+    }
+    
+    String processedText = text;
+    final matches = confluenceMarkerPattern.allMatches(text).toList();
+    
+    // Process matches in reverse order to maintain string indices
+    for (int i = matches.length - 1; i >= 0; i--) {
+      final match = matches[i];
+      final fullMatch = match.group(0)!;
+      final content = match.group(1)?.trim() ?? '';
+      
+      // Validate content is not empty
+      if (content.isEmpty) {
+        debugPrint('Warning: Empty Confluence content marker found, removing: $fullMatch');
+        processedText = processedText.replaceRange(match.start, match.end, '');
+        continue;
+      }
+      
+      // Validate content length to prevent token limit issues
+      if (content.length > 5000) {
+        debugPrint('Warning: Confluence content too long (${content.length} chars), truncating');
+        final truncatedContent = '${content.substring(0, 4900)}...\n[Содержимое обрезано из-за ограничений размера]';
+        processedText = processedText.replaceRange(match.start, match.end, truncatedContent);
+        continue;
+      }
+      
+      // Replace marker with processed content
+      final processedContent = sanitizeConfluenceContent(content);
+      processedText = processedText.replaceRange(match.start, match.end, processedContent);
+    }
+    
+    return processedText;
+  }
+  
+  /// Sanitizes Confluence content for safe LLM processing
+  /// 
+  /// Removes potentially problematic characters and formats content
+  @visibleForTesting
+  String sanitizeConfluenceContent(String content) {
+    if (content.isEmpty) return content;
+    
+    // Remove any remaining HTML-like tags that might have been missed
+    String sanitized = content.replaceAll(RegExp(r'<[^>]*>'), ' ');
+    
+    // Normalize whitespace
+    sanitized = sanitized.replaceAll(RegExp(r'\s+'), ' ').trim();
+    
+    // Remove control characters that might cause issues
+    sanitized = sanitized.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '');
+    
+    // Escape any remaining @ symbols to prevent marker confusion
+    sanitized = sanitized.replaceAll('@', '(at)');
+    
+    // Add context wrapper to make it clear this is referenced content
+    return '\n--- Информация из Confluence ---\n$sanitized\n--- Конец информации из Confluence ---\n';
+  }
+
   /// Validates response for common AI errors
   void _validateResponseForCommonErrors(String response) {
     // Check for common AI refusal patterns

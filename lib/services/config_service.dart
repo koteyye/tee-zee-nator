@@ -1,11 +1,16 @@
 import 'package:flutter/foundation.dart';
+import 'dart:convert';
 import 'package:hive/hive.dart';
 import '../models/app_config.dart';
 import '../models/output_format.dart';
+import '../services/confluence_error_handler.dart';
+import '../models/confluence_config.dart';
+import '../exceptions/confluence_exceptions.dart';
 
 class ConfigService extends ChangeNotifier {
   static const String _boxName = 'config_v3_clean'; // Полностью новый бокс без legacy данных
   static const String _configKey = 'app_config';
+  static const String _encryptionKey = 'tee_zee_nator_confluence_key_v1';
   
   AppConfig? _config;
   Box<AppConfig>? _box;
@@ -153,6 +158,7 @@ class ConfigService extends ChangeNotifier {
         llmopsModel: config.llmopsModel,
         llmopsAuthHeader: config.llmopsAuthHeader,
         preferredFormat: config.preferredFormat,
+        confluenceConfig: config.confluenceConfig,
       );
       
       _config = newConfig;
@@ -229,6 +235,314 @@ class ConfigService extends ChangeNotifier {
     } catch (e) {
       print('Ошибка при принудительном сбросе: $e');
       rethrow;
+    }
+  }
+
+  // ============================================================================
+  // CONFLUENCE CONFIGURATION METHODS
+  // ============================================================================
+
+  /// Gets the current Confluence configuration
+  ConfluenceConfig? getConfluenceConfig() {
+    if (_config?.confluenceConfig == null) {
+      return null;
+    }
+    
+    final config = _config!.confluenceConfig!;
+    
+    // Decrypt the token before returning
+    try {
+      final decryptedToken = _decryptToken(config.token);
+      return config.copyWith(token: decryptedToken);
+    } catch (e) {
+      print('Error decrypting Confluence token: $e');
+      // Return config with empty token if decryption fails
+      return config.copyWith(token: '', isValid: false);
+    }
+  }
+
+  /// Saves Confluence configuration with encrypted token
+  Future<void> saveConfluenceConfig(ConfluenceConfig confluenceConfig) async {
+    await init();
+    
+    // If main config doesn't exist, create a minimal one to store Confluence config
+    if (_config == null) {
+      _config = AppConfig(
+        apiUrl: '',
+        apiToken: '',
+        provider: 'openai',
+        preferredFormat: OutputFormat.markdown,
+      );
+      await saveConfig(_config!);
+    }
+
+    try {
+      // Validate configuration before saving
+      _validateConfluenceConfig(confluenceConfig);
+      
+      // Encrypt the token before saving
+      final encryptedToken = _encryptToken(confluenceConfig.token);
+      final configToSave = confluenceConfig.copyWith(
+        token: encryptedToken,
+        lastValidated: DateTime.now(),
+      );
+      
+      // Update the main config with Confluence configuration
+      final updatedConfig = _config!.copyWith(confluenceConfig: configToSave);
+      await saveConfig(updatedConfig);
+      
+      print('Confluence configuration saved successfully');
+    } catch (e) {
+      print('Error saving Confluence configuration: $e');
+      if (e is ConfluenceException) {
+        rethrow;
+      }
+      throw ConfluenceValidationException(
+        'Failed to save Confluence configuration',
+        technicalDetails: e.toString(),
+        recoveryAction: 'Check your configuration values and try again',
+      );
+    }
+  }
+
+  /// Updates Confluence connection status
+  Future<void> updateConfluenceConnectionStatus({
+    required bool isValid,
+    DateTime? lastValidated,
+  }) async {
+    final currentConfig = getConfluenceConfig();
+    if (currentConfig == null) {
+      throw ConfluenceValidationException(
+        'Cannot update connection status: Confluence configuration not found',
+        recoveryAction: 'Configure Confluence connection first',
+      );
+    }
+
+    final updatedConfig = currentConfig.copyWith(
+      isValid: isValid,
+      lastValidated: lastValidated ?? DateTime.now(),
+    );
+
+    await saveConfluenceConfig(updatedConfig);
+  }
+
+  /// Validates Confluence configuration completeness and format
+  bool validateConfluenceConfiguration() {
+    final config = getConfluenceConfig();
+    if (config == null) return false;
+    
+    try {
+      _validateConfluenceConfig(config);
+      return config.isConfigurationComplete && config.isValid;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Checks if Confluence integration is enabled and properly configured
+  bool isConfluenceEnabled() {
+    final config = getConfluenceConfig();
+    return config != null && 
+           config.enabled && 
+           config.isConfigurationComplete && 
+           config.isValid;
+  }
+
+  /// Disables Confluence integration
+  Future<void> disableConfluence() async {
+    final currentConfig = getConfluenceConfig();
+    if (currentConfig != null) {
+      final disabledConfig = currentConfig.copyWith(
+        enabled: false,
+        isValid: false,
+      );
+      await saveConfluenceConfig(disabledConfig);
+    }
+  }
+
+  /// Clears Confluence configuration completely
+  Future<void> clearConfluenceConfig() async {
+    await init();
+    
+    if (_config != null) {
+      final updatedConfig = _config!.copyWith(confluenceConfig: null);
+      await saveConfig(updatedConfig);
+      print('Confluence configuration cleared');
+    }
+  }
+
+  /// Gets connection status information for UI display
+  Map<String, dynamic> getConfluenceConnectionStatus() {
+    final config = getConfluenceConfig();
+    
+    if (config == null) {
+      return {
+        'isConfigured': false,
+        'isEnabled': false,
+        'isValid': false,
+        'lastValidated': null,
+        'statusMessage': 'Not configured',
+      };
+    }
+
+    return {
+      'isConfigured': config.isConfigurationComplete,
+      'isEnabled': config.enabled,
+      'isValid': config.isValid,
+      'lastValidated': config.lastValidated,
+      'statusMessage': _getConnectionStatusMessage(config),
+    };
+  }
+
+  // ============================================================================
+  // PRIVATE HELPER METHODS
+  // ============================================================================
+
+  /// Validates Confluence configuration fields
+  void _validateConfluenceConfig(ConfluenceConfig config) {
+    if (config.enabled) {
+      if (config.baseUrl.isEmpty) {
+        throw ConfluenceValidationException(
+          'Base URL is required when Confluence is enabled',
+          fieldName: 'baseUrl',
+          recoveryAction: 'Enter a valid Confluence base URL',
+        );
+      }
+
+      if (config.token.isEmpty) {
+        throw ConfluenceValidationException(
+          'API token is required when Confluence is enabled',
+          fieldName: 'token',
+          recoveryAction: 'Enter a valid Confluence API token',
+        );
+      }
+
+      // Validate URL format
+      if (!_isValidConfluenceUrl(config.baseUrl)) {
+        throw ConfluenceValidationException(
+          'Invalid Confluence URL format',
+          fieldName: 'baseUrl',
+          invalidValue: config.baseUrl,
+          recoveryAction: 'Enter a valid Confluence URL (e.g., https://yourcompany.atlassian.net)',
+        );
+      }
+    }
+  }
+
+  /// Validates Confluence URL format
+  bool _isValidConfluenceUrl(String url) {
+    if (url.isEmpty) return false;
+    
+    try {
+      final uri = Uri.parse(url);
+      return uri.hasScheme && 
+             (uri.scheme == 'http' || uri.scheme == 'https') &&
+             uri.hasAuthority;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Gets human-readable connection status message
+  String _getConnectionStatusMessage(ConfluenceConfig config) {
+    if (!config.enabled) {
+      return 'Disabled';
+    }
+    
+    if (!config.isConfigurationComplete) {
+      return 'Configuration incomplete';
+    }
+    
+    if (!config.isValid) {
+      return 'Connection failed';
+    }
+    
+    if (config.lastValidated != null) {
+      final timeDiff = DateTime.now().difference(config.lastValidated!);
+      if (timeDiff.inDays > 7) {
+        return 'Connection not verified recently';
+      }
+    }
+    
+    return 'Connected';
+  }
+
+  /// Encrypts token using simple XOR encryption with base64 encoding
+  String _encryptToken(String token) {
+    if (token.isEmpty) return token;
+    
+    try {
+      final keyBytes = utf8.encode(_encryptionKey);
+      final tokenBytes = utf8.encode(token);
+      final encryptedBytes = <int>[];
+      
+      for (int i = 0; i < tokenBytes.length; i++) {
+        encryptedBytes.add(tokenBytes[i] ^ keyBytes[i % keyBytes.length]);
+      }
+      
+      return base64.encode(encryptedBytes);
+    } catch (e) {
+      print('Error encrypting token: $e');
+      return token; // Return original token if encryption fails
+    }
+  }
+
+  /// Decrypts token using simple XOR decryption with base64 decoding
+  String _decryptToken(String encryptedToken) {
+    if (encryptedToken.isEmpty) return encryptedToken;
+    
+    try {
+      // Проверяем, содержит ли токен недопустимые символы в конце
+      if (encryptedToken.contains('===')) {
+        // Исправляем неправильное окончание base64
+        encryptedToken = encryptedToken.replaceAll('===', '==');
+      }
+      
+      // Clean up the base64 string - remove any invalid characters
+      String cleanToken = encryptedToken.replaceAll(RegExp(r'[^A-Za-z0-9+/=]'), '');
+      
+      // Check if the token is too malformed
+      if (cleanToken.length < encryptedToken.length * 0.8) {
+        // Token is too corrupted, more than 20% of characters were invalid
+        print('Token appears to be severely malformed, treating as plain text');
+        return encryptedToken;
+      }
+      
+      // Проверяем и исправляем padding
+      int paddingNeeded = (4 - (cleanToken.length % 4)) % 4;
+      cleanToken = cleanToken.replaceAll(RegExp(r'=+$'), '') + ''.padRight(paddingNeeded, '=');
+      
+      // Verify the token still has valid base64 format after cleaning
+      if (!RegExp(r'^[A-Za-z0-9+/=]+$').hasMatch(cleanToken)) {
+        print('Token still contains invalid base64 characters after cleaning');
+        return encryptedToken;
+      }
+      
+      final keyBytes = utf8.encode(_encryptionKey);
+      
+      List<int> encryptedBytes;
+      try {
+        encryptedBytes = base64.decode(cleanToken);
+      } catch (e) {
+        // Используем централизованный обработчик ошибок токена
+        return ConfluenceErrorHandler.handleTokenError(encryptedToken, e);
+      }
+      
+      final decryptedBytes = <int>[];
+      
+      for (int i = 0; i < encryptedBytes.length; i++) {
+        decryptedBytes.add(encryptedBytes[i] ^ keyBytes[i % keyBytes.length]);
+      }
+      
+      try {
+        return utf8.decode(decryptedBytes);
+      } catch (e) {
+        // Используем централизованный обработчик ошибок токена
+        return ConfluenceErrorHandler.handleTokenError(encryptedToken, e);
+      }
+    } catch (e) {
+      // Используем централизованный обработчик ошибок токена
+      return ConfluenceErrorHandler.handleTokenError(encryptedToken, e);
     }
   }
 }

@@ -4,9 +4,11 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'models/app_config.dart';
 import 'models/template.dart';
 import 'models/output_format.dart';
+import 'models/confluence_config.dart';
 import 'services/config_service.dart';
 import 'services/template_service.dart';
 import 'services/llm_service.dart';
+import 'services/confluence_service.dart';
 import 'screens/setup_screen.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
@@ -23,6 +25,7 @@ void main() async {
   Hive.registerAdapter(AppConfigAdapter()); // typeId = 10 (новая версия)
   Hive.registerAdapter(TemplateAdapter()); // typeId = 3
   Hive.registerAdapter(OutputFormatAdapter()); // typeId = 11
+  Hive.registerAdapter(ConfluenceConfigAdapter()); // typeId = 12
   
   runApp(MyApp());
 }
@@ -37,6 +40,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ConfigService()),
         ChangeNotifierProvider(create: (_) => TemplateService()),
         ChangeNotifierProvider(create: (_) => LLMService()),
+        ChangeNotifierProvider(create: (_) => ConfluenceService()),
       ],
       child: MaterialApp(
         title: 'TeeZeeNator',
@@ -59,10 +63,12 @@ class MyApp extends StatelessWidget {
   }
   
   Future<bool> _initializeServices() async {
-    final configService = ConfigService();
-    final templateService = TemplateService();
-    
     try {
+      // Получаем существующие инстансы сервисов через BuildContext
+      final context = WidgetsBinding.instance.rootElement as BuildContext;
+      final configService = Provider.of<ConfigService>(context, listen: false);
+      final templateService = Provider.of<TemplateService>(context, listen: false);
+      
       // Инициализируем TemplateService
       await templateService.init();
       

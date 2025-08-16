@@ -6,6 +6,7 @@ import '../services/llm_service.dart';
 import '../models/app_config.dart';
 import '../models/openai_model.dart';
 import '../models/output_format.dart';
+import '../widgets/main_screen/confluence_settings_widget.dart';
 import 'main_screen.dart';
 
 class SetupScreen extends StatefulWidget {
@@ -173,6 +174,9 @@ class _SetupScreenState extends State<SetupScreen> {
   }
   
   Future<void> _saveAndProceed() async {
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    final existingConfig = configService.config;
+    
     AppConfig config;
     
     if (_selectedProvider == 'openai') {
@@ -184,8 +188,9 @@ class _SetupScreenState extends State<SetupScreen> {
         provider: 'openai',
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
-        selectedTemplateId: null,
+        selectedTemplateId: existingConfig?.selectedTemplateId,
         preferredFormat: _selectedFormat,
+        confluenceConfig: existingConfig?.confluenceConfig, // Preserve existing Confluence config
       );
     } else {
       if (_selectedModel == null) return;
@@ -200,12 +205,12 @@ class _SetupScreenState extends State<SetupScreen> {
             : _llmopsAuthController.text.trim(),
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
-        selectedTemplateId: null,
+        selectedTemplateId: existingConfig?.selectedTemplateId,
         preferredFormat: _selectedFormat,
+        confluenceConfig: existingConfig?.confluenceConfig, // Preserve existing Confluence config
       );
     }
     
-    final configService = Provider.of<ConfigService>(context, listen: false);
     final llmService = Provider.of<LLMService>(context, listen: false);
     final templateService = Provider.of<TemplateService>(context, listen: false);
     
@@ -313,6 +318,10 @@ class _SetupScreenState extends State<SetupScreen> {
                   }).toList(),
                 ),
               ),
+              const SizedBox(height: 24),
+              
+              // Confluence Integration Settings
+              const ConfluenceSettingsWidget(),
               const SizedBox(height: 24),
               
               // Настройки OpenAI

@@ -1,6 +1,7 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'output_format.dart';
+import 'confluence_config.dart';
 
 part 'app_config.g.dart';
 
@@ -36,6 +37,10 @@ class AppConfig {
   
   @HiveField(9)
   final OutputFormat preferredFormat; // Предпочитаемый формат вывода
+  
+  @HiveField(10)
+  @JsonKey(toJson: _confluenceConfigToJson, fromJson: _confluenceConfigFromJson)
+  final ConfluenceConfig? confluenceConfig; // Конфигурация Confluence
 
   AppConfig({
     required this.apiUrl,
@@ -48,6 +53,7 @@ class AppConfig {
     this.llmopsModel,
     this.llmopsAuthHeader,
     this.preferredFormat = OutputFormat.markdown, // По умолчанию Markdown
+    this.confluenceConfig,
   });
   
   factory AppConfig.fromJson(Map<String, dynamic> json) => _$AppConfigFromJson(json);
@@ -66,6 +72,7 @@ class AppConfig {
       llmopsModel: map[7] as String?,
       llmopsAuthHeader: map[8] as String?,
       preferredFormat: map[9] as OutputFormat? ?? OutputFormat.markdown, // По умолчанию Markdown для старых конфигураций
+      confluenceConfig: map[10] as ConfluenceConfig?, // Confluence конфигурация для новых пользователей, null для существующих
       // Игнорируем старое поле useConfluenceFormat - теперь всегда используем Confluence
     );
   }
@@ -81,6 +88,7 @@ class AppConfig {
     String? llmopsModel,
     String? llmopsAuthHeader,
     OutputFormat? preferredFormat,
+    Object? confluenceConfig = _sentinel,
   }) {
     return AppConfig(
       apiUrl: apiUrl ?? this.apiUrl,
@@ -93,6 +101,21 @@ class AppConfig {
       llmopsModel: llmopsModel ?? this.llmopsModel,
       llmopsAuthHeader: llmopsAuthHeader ?? this.llmopsAuthHeader,
       preferredFormat: preferredFormat ?? this.preferredFormat,
+      confluenceConfig: confluenceConfig == _sentinel 
+          ? this.confluenceConfig 
+          : confluenceConfig as ConfluenceConfig?,
     );
   }
+}
+
+// Sentinel object to distinguish between null and not provided
+const Object _sentinel = Object();
+
+// Helper functions for ConfluenceConfig JSON serialization
+Map<String, dynamic>? _confluenceConfigToJson(ConfluenceConfig? config) {
+  return config?.toJson();
+}
+
+ConfluenceConfig? _confluenceConfigFromJson(Map<String, dynamic>? json) {
+  return json != null ? ConfluenceConfig.fromJson(json) : null;
 }

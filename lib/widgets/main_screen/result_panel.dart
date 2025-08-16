@@ -6,6 +6,7 @@ import '../../services/config_service.dart';
 import '../../models/output_format.dart';
 import 'html_content_viewer.dart';
 import 'confluence_html_transformer.dart';
+import 'confluence_publish_modal.dart';
 
 class ResultPanel extends StatelessWidget {
   final String generatedTz;
@@ -16,6 +17,17 @@ class ResultPanel extends StatelessWidget {
     required this.generatedTz,
     required this.onSave,
   });
+
+  /// Shows the Confluence publish modal dialog
+  void _showConfluencePublishModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => ConfluencePublishModal(
+        content: generatedTz,
+        suggestedTitle: 'Technical Specification',
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,40 +43,94 @@ class ResultPanel extends StatelessWidget {
             ),
             const Spacer(),
             if (generatedTz.isNotEmpty) ...[
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Преобразуем HTML в рендер-вариант перед копированием
-                  final transformedHtml = ConfluenceHtmlTransformer.transformForRender(generatedTz);
-                  Clipboard.setData(ClipboardData(text: transformedHtml));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('ТЗ скопировано в буфер обмена'),
-                      backgroundColor: Colors.green,
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.copy, size: 16),
-                label: const Text('Скопировать в буфер'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              Flexible(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Semantics(
+                        label: 'Copy technical specification to clipboard',
+                        child: Tooltip(
+                          message: 'Copy the generated specification to clipboard (Ctrl+C)',
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              // Преобразуем HTML в рендер-вариант перед копированием
+                              final transformedHtml = ConfluenceHtmlTransformer.transformForRender(generatedTz);
+                              Clipboard.setData(ClipboardData(text: transformedHtml));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('ТЗ скопировано в буфер обмена'),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.copy, size: 16),
+                            label: const Text('Скопировать в буфер'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Consumer<ConfigService>(
+                        builder: (context, configService, child) {
+                          final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+                          final extension = format.fileExtension;
+                          
+                          return Semantics(
+                            label: 'Save technical specification to file',
+                            child: Tooltip(
+                              message: 'Save the specification as a .$extension file (Ctrl+S)',
+                              child: ElevatedButton.icon(
+                                onPressed: onSave,
+                                icon: const Icon(Icons.save, size: 16),
+                                label: Text('Сохранить .$extension'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // Confluence publish button
+                      Consumer<ConfigService>(
+                        builder: (context, configService, child) {
+                          final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+                          final isMarkdownMode = format == OutputFormat.markdown;
+                          final isConfluenceEnabled = configService.isConfluenceEnabled();
+                          final shouldShowButton = isConfluenceEnabled && isMarkdownMode;
+                          
+                          if (!shouldShowButton) {
+                            return const SizedBox.shrink();
+                          }
+                          
+                          return Semantics(
+                            label: 'Publish technical specification to Confluence',
+                            child: Tooltip(
+                              message: 'Publish this specification to your Confluence workspace (Ctrl+P)',
+                              child: ElevatedButton.icon(
+                                key: const Key('publish_to_confluence_button'),
+                                onPressed: () => _showConfluencePublishModal(context),
+                                icon: const Icon(Icons.publish, size: 16),
+                                label: const Text('Publish to Confluence'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Consumer<ConfigService>(
-                builder: (context, configService, child) {
-                  final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
-                  final extension = format.fileExtension;
-                  
-                  return ElevatedButton.icon(
-                    onPressed: onSave,
-                    icon: const Icon(Icons.save, size: 16),
-                    label: Text('Сохранить .$extension'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                  );
-                },
               ),
             ],
           ],
