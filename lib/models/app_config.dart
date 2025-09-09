@@ -41,6 +41,12 @@ class AppConfig {
   @HiveField(10)
   @JsonKey(toJson: _confluenceConfigToJson, fromJson: _confluenceConfigFromJson)
   final ConfluenceConfig? confluenceConfig; // Конфигурация Confluence
+  
+  @HiveField(11)
+  final String? cerebrasToken; // API токен для Cerebras AI
+  
+  @HiveField(12)
+  final String? groqToken; // API токен для Groq
 
   AppConfig({
     required this.apiUrl,
@@ -54,6 +60,8 @@ class AppConfig {
     this.llmopsAuthHeader,
     this.preferredFormat = OutputFormat.markdown, // По умолчанию Markdown
     this.confluenceConfig,
+    this.cerebrasToken,
+    this.groqToken,
   });
   
   factory AppConfig.fromJson(Map<String, dynamic> json) => _$AppConfigFromJson(json);
@@ -73,6 +81,8 @@ class AppConfig {
       llmopsAuthHeader: map[8] as String?,
       preferredFormat: map[9] as OutputFormat? ?? OutputFormat.markdown, // По умолчанию Markdown для старых конфигураций
       confluenceConfig: map[10] as ConfluenceConfig?, // Confluence конфигурация для новых пользователей, null для существующих
+      cerebrasToken: map[11] as String?, // Cerebras AI токен
+      groqToken: map[12] as String?, // Groq токен
       // Игнорируем старое поле useConfluenceFormat - теперь всегда используем Confluence
     );
   }
@@ -89,6 +99,8 @@ class AppConfig {
     String? llmopsAuthHeader,
     OutputFormat? preferredFormat,
     Object? confluenceConfig = _sentinel,
+    String? cerebrasToken,
+    String? groqToken,
   }) {
     return AppConfig(
       apiUrl: apiUrl ?? this.apiUrl,
@@ -104,6 +116,8 @@ class AppConfig {
       confluenceConfig: confluenceConfig == _sentinel 
           ? this.confluenceConfig 
           : confluenceConfig as ConfluenceConfig?,
+      cerebrasToken: cerebrasToken ?? this.cerebrasToken,
+      groqToken: groqToken ?? this.groqToken,
     );
   }
 }

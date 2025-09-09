@@ -157,6 +157,9 @@ class ConfigService extends ChangeNotifier {
         llmopsBaseUrl: config.llmopsBaseUrl,
         llmopsModel: config.llmopsModel,
         llmopsAuthHeader: config.llmopsAuthHeader,
+        // ВАЖНО: сохраняем токены провайдеров
+        cerebrasToken: config.cerebrasToken,
+        groqToken: config.groqToken,
         preferredFormat: config.preferredFormat,
         confluenceConfig: config.confluenceConfig,
       );

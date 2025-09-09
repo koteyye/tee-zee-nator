@@ -197,7 +197,7 @@ void main() {
     group('Retry Logic', () {
       test('executes operation with retry on transient failures', () async {
         int attemptCount = 0;
-        final operation = () async {
+        operation() async {
           attemptCount++;
           if (attemptCount < 3) {
             throw ConfluenceExceptionFactory.connectionFailed(
@@ -206,7 +206,7 @@ void main() {
             );
           }
           return 'success';
-        };
+        }
 
         final result = await ConfluenceErrorHandler.executeWithRetry(
           operation,
@@ -221,12 +221,12 @@ void main() {
 
       test('does not retry on authentication errors', () async {
         int attemptCount = 0;
-        final operation = () async {
+        operation() async {
           attemptCount++;
           throw ConfluenceExceptionFactory.authenticationFailed(
             details: 'Invalid credentials',
           );
-        };
+        }
 
         try {
           await ConfluenceErrorHandler.executeWithRetry(
@@ -243,13 +243,13 @@ void main() {
 
       test('respects maximum retry attempts', () async {
         int attemptCount = 0;
-        final operation = () async {
+        operation() async {
           attemptCount++;
           throw ConfluenceExceptionFactory.connectionFailed(
             baseUrl: 'https://test.atlassian.net',
             details: 'Persistent error',
           );
-        };
+        }
 
         try {
           await ConfluenceErrorHandler.executeWithRetry(
@@ -269,13 +269,13 @@ void main() {
         final delays = <Duration>[];
         int attemptCount = 0;
 
-        final operation = () async {
+        operation() async {
           attemptCount++;
           if (attemptCount < 4) {
             throw Exception('Test error');
           }
           return 'success';
-        };
+        }
 
         final stopwatch = Stopwatch()..start();
         await ConfluenceErrorHandler.executeWithRetry(

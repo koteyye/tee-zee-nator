@@ -22,12 +22,16 @@ class _SetupScreenState extends State<SetupScreen> {
   final _tokenController = TextEditingController();
   final _llmopsUrlController = TextEditingController(text: 'http://localhost:11434');
   final _llmopsAuthController = TextEditingController();
+  final _cerebrasTokenController = TextEditingController();
+  final _groqTokenController = TextEditingController();
   
   // Добавляем FocusNode'ы для управления фокусом
   final _urlFocusNode = FocusNode();
   final _tokenFocusNode = FocusNode();
   final _llmopsUrlFocusNode = FocusNode();
   final _llmopsAuthFocusNode = FocusNode();
+  final _cerebrasFocusNode = FocusNode();
+  final _groqFocusNode = FocusNode();
   
   String _selectedProvider = 'openai';
   OutputFormat _selectedFormat = OutputFormat.defaultFormat;
@@ -49,11 +53,15 @@ class _SetupScreenState extends State<SetupScreen> {
     _tokenController.dispose();
     _llmopsUrlController.dispose();
     _llmopsAuthController.dispose();
+    _cerebrasTokenController.dispose();
+    _groqTokenController.dispose();
     
     _urlFocusNode.dispose();
     _tokenFocusNode.dispose();
     _llmopsUrlFocusNode.dispose();
     _llmopsAuthFocusNode.dispose();
+    _cerebrasFocusNode.dispose();
+    _groqFocusNode.dispose();
     
     super.dispose();
   }
@@ -68,9 +76,13 @@ class _SetupScreenState extends State<SetupScreen> {
         if (_selectedProvider == 'openai') {
           _urlController.text = config.apiUrl;
           _tokenController.text = config.apiToken;
-        } else {
+        } else if (_selectedProvider == 'llmops') {
           _llmopsUrlController.text = config.llmopsBaseUrl ?? 'http://localhost:11434';
           _llmopsAuthController.text = config.llmopsAuthHeader ?? '';
+        } else if (_selectedProvider == 'cerebras') {
+          _cerebrasTokenController.text = config.cerebrasToken ?? '';
+        } else if (_selectedProvider == 'groq') {
+          _groqTokenController.text = config.groqToken ?? '';
         }
       });
     }
@@ -91,42 +103,37 @@ class _SetupScreenState extends State<SetupScreen> {
     
     try {
       final llmService = Provider.of<LLMService>(context, listen: false);
+      AppConfig testConfig;
       
       if (_selectedProvider == 'openai') {
-        final testConfig = AppConfig(
+        testConfig = AppConfig(
           apiUrl: _urlController.text.trim(),
           apiToken: _tokenController.text.trim(),
           provider: 'openai',
           defaultModel: 'gpt-3.5-turbo',
           reviewModel: 'gpt-3.5-turbo',
         );
-        
-        llmService.initializeProvider(testConfig);
-        final success = await llmService.testConnection();
-        
-        if (success) {
-          final models = await llmService.getModels();
-          final openAIModels = models.map((id) => OpenAIModel(
-            id: id, 
-            object: 'model',
-            created: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            ownedBy: 'openai'
-          )).toList();
-          
-          setState(() {
-            _isTestingConnection = false;
-            _connectionSuccess = true;
-            _availableModels = openAIModels;
-            if (openAIModels.isNotEmpty) {
-              _selectedModel = openAIModels.first;
-            }
-          });
-        } else {
-          throw Exception(llmService.error ?? 'Не удалось подключиться к OpenAI API');
-        }
+      } else if (_selectedProvider == 'cerebras') {
+        testConfig = AppConfig(
+          apiUrl: 'https://api.cerebras.ai/v1', // Заглушка для обязательных полей
+          apiToken: 'test-token', // Заглушка для обязательных полей
+          provider: 'cerebras',
+          cerebrasToken: _cerebrasTokenController.text.trim(),
+          defaultModel: 'default',
+          reviewModel: 'default',
+        );
+      } else if (_selectedProvider == 'groq') {
+        testConfig = AppConfig(
+          apiUrl: 'https://api.groq.com/openai/v1', // Заглушка для обязательных полей
+          apiToken: 'test-token', // Заглушка для обязательных полей
+          provider: 'groq',
+          groqToken: _groqTokenController.text.trim(),
+          defaultModel: 'default',
+          reviewModel: 'default',
+        );
       } else {
-        // Для LLMOps используем такой же подход с получением моделей
-        final testConfig = AppConfig(
+        // LLMOps
+        testConfig = AppConfig(
           apiUrl: 'https://api.openai.com/v1', // Заглушка для обязательных полей
           apiToken: 'test-token', // Заглушка для обязательных полей
           provider: 'llmops',
@@ -138,31 +145,44 @@ class _SetupScreenState extends State<SetupScreen> {
           defaultModel: 'default',
           reviewModel: 'default',
         );
+      }
+      
+      llmService.initializeProvider(testConfig);
+      final success = await llmService.testConnection();
+      
+      if (success) {
+        final models = await llmService.getModels();
+        final providerModels = models.map((id) => OpenAIModel(
+          id: id, 
+          object: 'model',
+          created: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          ownedBy: _selectedProvider
+        )).toList();
         
-        llmService.initializeProvider(testConfig);
-        final success = await llmService.testConnection();
-        
-        if (success) {
-          final models = await llmService.getModels();
-          final llmopsModels = models.map((id) => OpenAIModel(
-            id: id, 
-            object: 'model',
-            created: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-            ownedBy: 'llmops'
-          )).toList();
-          
-          setState(() {
-            _isTestingConnection = false;
-            _connectionSuccess = true;
-            _availableModels = llmopsModels;
-            // Для LLMOps выбираем первую доступную модель по умолчанию
-            if (llmopsModels.isNotEmpty) {
-              _selectedModel = llmopsModels.first;
-            }
-          });
-        } else {
-          throw Exception(llmService.error ?? 'Не удалось подключиться к LLMOps серверу');
+        setState(() {
+          _isTestingConnection = false;
+          _connectionSuccess = true;
+          _availableModels = providerModels;
+          if (providerModels.isNotEmpty) {
+            _selectedModel = providerModels.first;
+          }
+        });
+      } else {
+        String errorMsg;
+        switch (_selectedProvider) {
+          case 'cerebras':
+            errorMsg = 'Не удалось подключиться к Cerebras AI';
+            break;
+          case 'groq':
+            errorMsg = 'Не удалось подключиться к Groq';
+            break;
+          case 'llmops':
+            errorMsg = 'Не удалось подключиться к LLMOps серверу';
+            break;
+          default:
+            errorMsg = 'Не удалось подключиться к OpenAI API';
         }
+        throw Exception(llmService.error ?? errorMsg);
       }
     } catch (e) {
       setState(() {
@@ -177,11 +197,11 @@ class _SetupScreenState extends State<SetupScreen> {
     final configService = Provider.of<ConfigService>(context, listen: false);
     final existingConfig = configService.config;
     
+    if (_selectedModel == null) return;
+    
     AppConfig config;
     
     if (_selectedProvider == 'openai') {
-      if (_selectedModel == null) return;
-      
       config = AppConfig(
         apiUrl: _urlController.text.trim(),
         apiToken: _tokenController.text.trim(),
@@ -190,16 +210,40 @@ class _SetupScreenState extends State<SetupScreen> {
         reviewModel: _selectedModel!.id,
         selectedTemplateId: existingConfig?.selectedTemplateId,
         preferredFormat: _selectedFormat,
-        confluenceConfig: existingConfig?.confluenceConfig, // Preserve existing Confluence config
+        confluenceConfig: existingConfig?.confluenceConfig,
+      );
+    } else if (_selectedProvider == 'cerebras') {
+      config = AppConfig(
+        apiUrl: 'https://api.cerebras.ai/v1', // Заглушка для обязательных полей
+        apiToken: 'test-token', // Заглушка для обязательных полей
+        provider: 'cerebras',
+        cerebrasToken: _cerebrasTokenController.text.trim(),
+        defaultModel: _selectedModel!.id,
+        reviewModel: _selectedModel!.id,
+        selectedTemplateId: existingConfig?.selectedTemplateId,
+        preferredFormat: _selectedFormat,
+        confluenceConfig: existingConfig?.confluenceConfig,
+      );
+    } else if (_selectedProvider == 'groq') {
+      config = AppConfig(
+        apiUrl: 'https://api.groq.com/openai/v1', // Заглушка для обязательных полей
+        apiToken: 'test-token', // Заглушка для обязательных полей
+        provider: 'groq',
+        groqToken: _groqTokenController.text.trim(),
+        defaultModel: _selectedModel!.id,
+        reviewModel: _selectedModel!.id,
+        selectedTemplateId: existingConfig?.selectedTemplateId,
+        preferredFormat: _selectedFormat,
+        confluenceConfig: existingConfig?.confluenceConfig,
       );
     } else {
-      if (_selectedModel == null) return;
+      // LLMOps
       config = AppConfig(
         apiUrl: 'https://api.openai.com/v1', // Заглушка для обязательных полей
         apiToken: 'test-token', // Заглушка для обязательных полей
         provider: 'llmops',
         llmopsBaseUrl: _llmopsUrlController.text.trim(),
-        llmopsModel: _selectedModel!.id, // Используем выбранную модель
+        llmopsModel: _selectedModel!.id,
         llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty
             ? null
             : _llmopsAuthController.text.trim(),
@@ -207,7 +251,7 @@ class _SetupScreenState extends State<SetupScreen> {
         reviewModel: _selectedModel!.id,
         selectedTemplateId: existingConfig?.selectedTemplateId,
         preferredFormat: _selectedFormat,
-        confluenceConfig: existingConfig?.confluenceConfig, // Preserve existing Confluence config
+        confluenceConfig: existingConfig?.confluenceConfig,
       );
     }
     
@@ -269,8 +313,10 @@ class _SetupScreenState extends State<SetupScreen> {
                   border: OutlineInputBorder(),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
-                  DropdownMenuItem(value: 'llmops', child: Text('LLMOps')),
+                  DropdownMenuItem(value: 'openai', child: Text('Open AI Competitive')),
+                  DropdownMenuItem(value: 'llmops', child: Text('LocalLLM')),
+                  DropdownMenuItem(value: 'cerebras', child: Text('Cerebras AI')),
+                  DropdownMenuItem(value: 'groq', child: Text('Groq')),
                 ],
                 onChanged: (String? newValue) {
                   if (newValue != null) {
@@ -318,10 +364,6 @@ class _SetupScreenState extends State<SetupScreen> {
                   }).toList(),
                 ),
               ),
-              const SizedBox(height: 24),
-              
-              // Confluence Integration Settings
-              const ConfluenceSettingsWidget(),
               const SizedBox(height: 24),
               
               // Настройки OpenAI
@@ -407,6 +449,58 @@ class _SetupScreenState extends State<SetupScreen> {
                     hintText: 'Bearer your-token',
                   ),
                   obscureText: true,
+                ),
+              ],
+              
+              // Настройки Cerebras AI
+              if (_selectedProvider == 'cerebras') ...[
+                const Text(
+                  'Настройки Cerebras AI',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                
+                // Token поле
+                TextFormField(
+                  controller: _cerebrasTokenController,
+                  focusNode: _cerebrasFocusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Cerebras AI Token',
+                    hintText: 'Введите ваш Cerebras AI токен',
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (_selectedProvider == 'cerebras' && (value == null || value.isEmpty)) {
+                      return 'Введите Cerebras AI токен';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+              
+              // Настройки Groq
+              if (_selectedProvider == 'groq') ...[
+                const Text(
+                  'Настройки Groq',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                
+                // Token поле
+                TextFormField(
+                  controller: _groqTokenController,
+                  focusNode: _groqFocusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Groq Token',
+                    hintText: 'Введите ваш Groq токен',
+                  ),
+                  obscureText: true,
+                  validator: (value) {
+                    if (_selectedProvider == 'groq' && (value == null || value.isEmpty)) {
+                      return 'Введите Groq токен';
+                    }
+                    return null;
+                  },
                 ),
               ],
               const SizedBox(height: 24),
@@ -554,6 +648,10 @@ class _SetupScreenState extends State<SetupScreen> {
                   ],
                 ),
               ],
+              
+              // Confluence Integration Settings
+              const SizedBox(height: 24),
+              const ConfluenceSettingsWidget(),
             ],
           ),
         ),

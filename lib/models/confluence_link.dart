@@ -90,10 +90,22 @@ class ConfluenceLink {
 
   /// Extracts page ID from the original URL
   static String? extractPageIdFromUrl(String url) {
-    // Pattern: https://domain.atlassian.net/wiki/spaces/SPACE/pages/123456/Page+Title
-    final pageIdRegex = RegExp(r'/pages/(\d+)(?:/|$)');
-    final match = pageIdRegex.firstMatch(url);
-    return match?.group(1);
+    // Try /pages/{id}
+    final pagesIdRegex = RegExp(r'/pages/(\d+)(?:/|$)');
+    final m1 = pagesIdRegex.firstMatch(url);
+    if (m1 != null) return m1.group(1);
+
+    // Try query param pageId=123456 (viewpage.action?pageId=123456)
+    try {
+      final uri = Uri.parse(url);
+      final qpId = uri.queryParameters['pageId'];
+      if (qpId != null && RegExp(r'^\d+$').hasMatch(qpId)) {
+        return qpId;
+      }
+    } catch (_) {}
+
+    // No ID detected
+    return null;
   }
 
   /// Validates if the URL matches the expected Confluence pattern
@@ -101,15 +113,28 @@ class ConfluenceLink {
     try {
       final uri = Uri.parse(url);
       final baseUri = Uri.parse(baseUrl);
-      
-      // Check if the domain matches
+
+      // Host must match configured Confluence host
       if (uri.host != baseUri.host) {
         return false;
       }
-      
-      // Check if it's a wiki page URL
-      return uri.path.contains('/wiki/') && extractPageIdFromUrl(url) != null;
-    } catch (e) {
+
+      // Accept typical Confluence paths, including self-hosted/DC and tiny links
+      final path = uri.path.toLowerCase();
+      final looksConfluencePath = path.contains('/wiki/') ||
+          path.contains('/pages/') ||
+          path.contains('/display/') ||
+          path.startsWith('/x/') ||
+          path.contains('viewpage.action');
+
+      // Consider valid if it looks like a Confluence path and either already has pageId,
+      // or we can try to resolve it later (tiny link). Here we only filter obvious non-Confluence URLs.
+      if (!looksConfluencePath) return false;
+
+      // If pageId can be extracted now, even better
+      final id = extractPageIdFromUrl(url);
+      return id != null || path.startsWith('/x/');
+    } catch (_) {
       return false;
     }
   }

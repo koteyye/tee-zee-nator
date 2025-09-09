@@ -11,7 +11,6 @@ import 'package:tee_zee_nator/services/confluence_publisher.dart';
 import 'package:tee_zee_nator/services/llm_service.dart';
 import 'package:tee_zee_nator/models/app_config.dart';
 import 'package:tee_zee_nator/models/confluence_config.dart';
-import 'package:tee_zee_nator/models/confluence_page.dart';
 import 'package:tee_zee_nator/models/publish_result.dart';
 import 'package:tee_zee_nator/models/output_format.dart';
 import 'package:tee_zee_nator/widgets/main_screen/confluence_settings_widget.dart';

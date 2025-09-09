@@ -46,6 +46,10 @@ class _InputPanelState extends State<InputPanel> {
   ConfluenceContentProcessor? _contentProcessor;
   ConfluenceService? _confluenceService;
   ConfluenceDebouncer? _debouncer;
+
+  // Config change handling
+  bool _didAttachConfigListener = false;
+  bool _autoTriggeredOnce = false;
   
   // Processing state
   bool _isProcessingRawRequirements = false;
@@ -64,6 +68,18 @@ class _InputPanelState extends State<InputPanel> {
     super.initState();
     _initializeServices();
     _setupTextFieldListeners();
+    _attachConfigListener();
+
+    // One-shot auto-processing if text already present and services ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_contentProcessor != null) {
+        ConfluenceErrorHandler.logInfo(
+          'Post-frame: auto trigger processing for existing text',
+          context: 'InputPanel.initState',
+        );
+        _triggerOneShotProcessing();
+      }
+    });
   }
   
   @override
@@ -76,6 +92,8 @@ class _InputPanelState extends State<InputPanel> {
       sessionManager.unregisterProcessor(_contentProcessor!);
       _contentProcessor!.dispose();
     }
+
+    _detachConfigListener();
     
     super.dispose();
   }
@@ -84,29 +102,156 @@ class _InputPanelState extends State<InputPanel> {
     final configService = Provider.of<ConfigService>(context, listen: false);
     final confluenceConfig = configService.getConfluenceConfig();
     
+    ConfluenceErrorHandler.logInfo(
+      'Initializing services; config present=${confluenceConfig != null}, complete=${confluenceConfig?.isConfigurationComplete == true}',
+      context: 'InputPanel._initializeServices',
+    );
+
+    // Debouncer must be available regardless of Confluence readiness
+    _debouncer ??= ConfluenceDebouncer();
+    
     if (confluenceConfig != null && confluenceConfig.isConfigurationComplete) {
       _confluenceService = ConfluenceService();
       _confluenceService!.initialize(confluenceConfig);
       _contentProcessor = ConfluenceContentProcessor(_confluenceService!);
-      _debouncer = ConfluenceDebouncer();
       
       // Register with session manager for automatic cleanup
       final sessionManager = ConfluenceSessionManager();
       sessionManager.initialize();
       sessionManager.registerProcessor(_contentProcessor!);
+
+      final host = Uri.tryParse(confluenceConfig.sanitizedBaseUrl)?.host ?? 'unknown';
+      ConfluenceErrorHandler.logInfo(
+        'Confluence services initialized for host $host',
+        context: 'InputPanel._initializeServices',
+      );
+    } else {
+      ConfluenceErrorHandler.logInfo(
+        'Confluence config missing or incomplete; skipping Confluence initialization',
+        context: 'InputPanel._initializeServices',
+      );
     }
   }
   
   void _setupTextFieldListeners() {
     widget.rawRequirementsController.addListener(_onRawRequirementsChanged);
     widget.changesController.addListener(_onChangesChanged);
+    ConfluenceErrorHandler.logInfo(
+      'Text field listeners attached',
+      context: 'InputPanel._setupTextFieldListeners',
+    );
+  }
+
+  void _attachConfigListener() {
+    if (_didAttachConfigListener) return;
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    configService.addListener(_onConfigChanged);
+    _didAttachConfigListener = true;
+    ConfluenceErrorHandler.logInfo(
+      'Config listener attached',
+      context: 'InputPanel._attachConfigListener',
+    );
+  }
+
+  void _detachConfigListener() {
+    if (!_didAttachConfigListener) return;
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    configService.removeListener(_onConfigChanged);
+    _didAttachConfigListener = false;
+    ConfluenceErrorHandler.logInfo(
+      'Config listener detached',
+      context: 'InputPanel._detachConfigListener',
+    );
+  }
+
+  void _onConfigChanged() {
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    final conf = configService.getConfluenceConfig();
+
+    if (conf != null && conf.isConfigurationComplete) {
+      if (_contentProcessor == null) {
+        ConfluenceErrorHandler.logInfo(
+          'Config completed detected; initializing Confluence services',
+          context: 'InputPanel._onConfigChanged',
+        );
+        _confluenceService = ConfluenceService();
+        _confluenceService!.initialize(conf);
+        _contentProcessor = ConfluenceContentProcessor(_confluenceService!);
+        _debouncer ??= ConfluenceDebouncer();
+
+        final sessionManager = ConfluenceSessionManager();
+        sessionManager.initialize();
+        sessionManager.registerProcessor(_contentProcessor!);
+
+        // Trigger once for existing text
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _triggerOneShotProcessing();
+        });
+      }
+    } else {
+      // Config became incomplete; teardown
+      if (_contentProcessor != null) {
+        ConfluenceErrorHandler.logInfo(
+          'Config became incomplete; tearing down Confluence services',
+          context: 'InputPanel._onConfigChanged',
+        );
+        final sessionManager = ConfluenceSessionManager();
+        sessionManager.unregisterProcessor(_contentProcessor!);
+        _contentProcessor!.dispose();
+        _contentProcessor = null;
+        _confluenceService = null;
+        // keep debouncer alive
+      }
+    }
+  }
+
+  void _triggerOneShotProcessing() {
+    if (_autoTriggeredOnce) {
+      return;
+    }
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    final conf = configService.getConfluenceConfig();
+    if (conf == null || !conf.isConfigurationComplete || _contentProcessor == null) {
+      ConfluenceErrorHandler.logInfo(
+        'One-shot processing skipped (services not ready)',
+        context: 'InputPanel._triggerOneShotProcessing',
+      );
+      return;
+    }
+    _autoTriggeredOnce = true;
+
+    final raw = widget.rawRequirementsController.text;
+    final ch = widget.changesController.text;
+
+    ConfluenceErrorHandler.logInfo(
+      'One-shot processing start: rawLen=${raw.length}, changesLen=${ch.length}',
+      context: 'InputPanel._triggerOneShotProcessing',
+    );
+
+    if (raw.isNotEmpty) {
+      _processConfluenceLinks(raw, isRawRequirements: true);
+    }
+    if (ch.isNotEmpty) {
+      _processConfluenceLinks(ch, isRawRequirements: false);
+    }
   }
   
   void _onRawRequirementsChanged() {
     final configService = Provider.of<ConfigService>(context, listen: false);
-    if (!configService.isConfluenceEnabled() || _debouncer == null) return;
+    final conf = configService.getConfluenceConfig();
+    if (conf == null || !conf.isConfigurationComplete || _debouncer == null) {
+      ConfluenceErrorHandler.logInfo(
+        'Skip raw requirements change: confComplete=${conf?.isConfigurationComplete == true}, debouncerReady=${_debouncer != null}',
+        context: 'InputPanel._onRawRequirementsChanged',
+      );
+      return;
+    }
     
     final text = widget.rawRequirementsController.text;
+    ConfluenceErrorHandler.logInfo(
+      'Raw requirements changed, length=${text.length}. Scheduling processing.',
+      context: 'InputPanel._onRawRequirementsChanged',
+    );
     
     _debouncer!.adaptiveDebounce(
       _rawRequirementsKey,
@@ -117,9 +262,20 @@ class _InputPanelState extends State<InputPanel> {
   
   void _onChangesChanged() {
     final configService = Provider.of<ConfigService>(context, listen: false);
-    if (!configService.isConfluenceEnabled() || _debouncer == null) return;
+    final conf = configService.getConfluenceConfig();
+    if (conf == null || !conf.isConfigurationComplete || _debouncer == null) {
+      ConfluenceErrorHandler.logInfo(
+        'Skip changes change: confComplete=${conf?.isConfigurationComplete == true}, debouncerReady=${_debouncer != null}',
+        context: 'InputPanel._onChangesChanged',
+      );
+      return;
+    }
     
     final text = widget.changesController.text;
+    ConfluenceErrorHandler.logInfo(
+      'Changes text changed, length=${text.length}. Scheduling processing.',
+      context: 'InputPanel._onChangesChanged',
+    );
     
     _debouncer!.adaptiveDebounce(
       _changesKey,
@@ -129,14 +285,29 @@ class _InputPanelState extends State<InputPanel> {
   }
   
   Future<void> _processConfluenceLinks(String text, {required bool isRawRequirements}) async {
-    if (_contentProcessor == null) return;
+    if (_contentProcessor == null) {
+      ConfluenceErrorHandler.logInfo(
+        'Skip processing: contentProcessor is null',
+        context: 'InputPanel._processConfluenceLinks',
+      );
+      return;
+    }
     
     final configService = Provider.of<ConfigService>(context, listen: false);
     final confluenceConfig = configService.getConfluenceConfig();
     
     if (confluenceConfig == null || !confluenceConfig.isConfigurationComplete) {
+      ConfluenceErrorHandler.logInfo(
+        'Skip processing: config missing or incomplete',
+        context: 'InputPanel._processConfluenceLinks',
+      );
       return;
     }
+
+    ConfluenceErrorHandler.logInfo(
+      'Start processing ${isRawRequirements ? 'requirements' : 'changes'}; length=${text.length}',
+      context: 'InputPanel._processConfluenceLinks',
+    );
     
     setState(() {
       if (isRawRequirements) {
@@ -154,6 +325,12 @@ class _InputPanelState extends State<InputPanel> {
         enableOptimizations: true, // Enable performance optimizations
       );
       
+      final changed = processedText != text;
+      ConfluenceErrorHandler.logInfo(
+        'Finished processing ${isRawRequirements ? 'requirements' : 'changes'}; changed=$changed, resultLen=${processedText.length}',
+        context: 'InputPanel._processConfluenceLinks',
+      );
+
       setState(() {
         if (isRawRequirements) {
           _processedRawRequirements = processedText;
@@ -190,6 +367,10 @@ class _InputPanelState extends State<InputPanel> {
   }
   
   void _onClear() {
+    ConfluenceErrorHandler.logInfo(
+      'Clear triggered: resetting processed state and caches',
+      context: 'InputPanel._onClear',
+    );
     // Clear processed content when clearing fields
     setState(() {
       _processedRawRequirements = '';
@@ -212,8 +393,16 @@ class _InputPanelState extends State<InputPanel> {
   void _onGenerate() {
     // Use processed content for generation if available
     final configService = Provider.of<ConfigService>(context, listen: false);
+    final conf = configService.getConfluenceConfig();
     
-    if (configService.isConfluenceEnabled()) {
+    if (conf != null && conf.isConfigurationComplete) {
+      final useProcessedRaw = _processedRawRequirements.isNotEmpty;
+      final useProcessedChanges = _processedChanges.isNotEmpty;
+      ConfluenceErrorHandler.logInfo(
+        'Generate pressed with Confluence: useProcessedRaw=$useProcessedRaw, useProcessedChanges=$useProcessedChanges',
+        context: 'InputPanel._onGenerate',
+      );
+
       // Temporarily replace controller text with processed content for generation
       final originalRawText = widget.rawRequirementsController.text;
       final originalChangesText = widget.changesController.text;
@@ -235,6 +424,10 @@ class _InputPanelState extends State<InputPanel> {
         widget.changesController.text = originalChangesText;
       });
     } else {
+      ConfluenceErrorHandler.logInfo(
+        'Generate pressed without Confluence configuration; proceeding with original text',
+        context: 'InputPanel._onGenerate',
+      );
       // No Confluence processing, use original callback
       widget.onGenerate();
     }

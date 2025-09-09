@@ -28,9 +28,11 @@ class ConfluenceSettingsWidget extends StatefulWidget {
 class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
   final _formKey = GlobalKey<FormState>();
   final _baseUrlController = TextEditingController();
+  final _emailController = TextEditingController();
   final _tokenController = TextEditingController();
   
   final _baseUrlFocusNode = FocusNode();
+  final _emailFocusNode = FocusNode();
   final _tokenFocusNode = FocusNode();
   
   bool _isEnabled = false;
@@ -47,8 +49,10 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
   @override
   void dispose() {
     _baseUrlController.dispose();
+    _emailController.dispose();
     _tokenController.dispose();
     _baseUrlFocusNode.dispose();
+    _emailFocusNode.dispose();
     _tokenFocusNode.dispose();
     super.dispose();
   }
@@ -63,6 +67,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
       setState(() {
         _isEnabled = confluenceConfig.enabled;
         _baseUrlController.text = confluenceConfig.baseUrl;
+        _emailController.text = confluenceConfig.email;
         _tokenController.text = confluenceConfig.token;
         _connectionSuccess = confluenceConfig.isValid;
       });
@@ -86,6 +91,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
       final confluenceService = Provider.of<ConfluenceService>(context, listen: false);
       final success = await confluenceService.testConnection(
         _baseUrlController.text.trim(),
+        _emailController.text.trim(),
         _tokenController.text.trim(),
       );
       
@@ -103,7 +109,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
         setState(() {
           _isTestingConnection = false;
           _connectionSuccess = false;
-          _errorMessage = 'Connection test failed: $e';
+          _errorMessage = 'Ошибка проверки соединения: $e';
         });
       }
     }
@@ -130,6 +136,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
           confluenceConfig: ConfluenceConfig(
             enabled: _isEnabled,
             baseUrl: _baseUrlController.text.trim(),
+            email: _emailController.text.trim(),
             token: _tokenController.text.trim(),
             lastValidated: _connectionSuccess ? DateTime.now() : null,
             isValid: _connectionSuccess,
@@ -145,8 +152,8 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
         
         if (mounted) {
           _showSuccessSnackBar(_connectionSuccess 
-              ? 'Confluence configuration saved successfully' 
-              : 'Confluence configuration saved as draft');
+              ? 'Конфигурация Confluence сохранена успешно' 
+              : 'Конфигурация Confluence сохранена как черновик');
         }
         return;
       }
@@ -155,6 +162,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
       final confluenceConfig = ConfluenceConfig(
         enabled: _isEnabled,
         baseUrl: _baseUrlController.text.trim(),
+        email: _emailController.text.trim(),
         token: _tokenController.text.trim(),
         lastValidated: _connectionSuccess ? DateTime.now() : null,
         isValid: _connectionSuccess,
@@ -173,13 +181,13 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
       
       if (mounted) {
         _showSuccessSnackBar(_connectionSuccess 
-            ? 'Confluence configuration saved successfully' 
-            : 'Confluence configuration saved as draft');
+            ? 'Конфигурация Confluence сохранена успешно' 
+            : 'Конфигурация Confluence сохранена как черновик');
       }
       
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('Failed to save configuration: $e');
+        _showErrorSnackBar('Ошибка при сохранении конфигурации: $e');
       }
     }
   }
@@ -191,6 +199,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
       if (!value) {
         // Clear fields and reset state when disabled
         _baseUrlController.clear();
+        _emailController.clear();
         _tokenController.clear();
         _connectionSuccess = false;
         _errorMessage = null;
@@ -203,19 +212,19 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
     if (!_isEnabled) return null;
     
     if (value == null || value.trim().isEmpty) {
-      return 'Base URL is required when Confluence is enabled';
+      return 'Базовый URL обязателен при включенной интеграции с Confluence';
     }
     
     final trimmedValue = value.trim();
     final uri = Uri.tryParse(trimmedValue);
     
     if (uri == null || !uri.isAbsolute || (!uri.isScheme('http') && !uri.isScheme('https'))) {
-      return 'Please enter a valid URL (e.g., https://company.atlassian.net)';
+      return 'Введите корректный URL (например, https://company.atlassian.net)';
     }
     
     // Check if URL contains /wiki/rest/api suffix (should be removed)
     if (trimmedValue.contains('/wiki/rest/api')) {
-      return 'Please remove /wiki/rest/api from the URL';
+      return 'Удалите /wiki/rest/api из URL';
     }
     
     return null;
@@ -226,12 +235,30 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
     if (!_isEnabled) return null;
     
     if (value == null || value.trim().isEmpty) {
-      return 'Token is required when Confluence is enabled';
+      return 'API токен обязателен при включенной интеграции с Confluence';
     }
     
     final trimmedValue = value.trim();
     if (trimmedValue.length < 10) {
-      return 'Token appears to be too short';
+      return 'Токен кажется слишком коротким';
+    }
+    
+    return null;
+  }
+
+  /// Validates email format
+  String? _validateEmail(String? value) {
+    if (!_isEnabled) return null;
+    
+    if (value == null || value.trim().isEmpty) {
+      return 'Электронная почта обязательна при включенной интеграции с Confluence';
+    }
+    
+    final trimmedValue = value.trim();
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    
+    if (!emailRegex.hasMatch(trimmedValue)) {
+      return 'Введите корректный адрес электронной почты';
     }
     
     return null;
@@ -268,7 +295,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
           children: [
             Icon(Icons.help_outline, color: AppTheme.primaryRed),
             SizedBox(width: 8),
-            Text('How to Generate API Token'),
+            Text('Как создать API токен'),
           ],
         ),
         content: const SingleChildScrollView(
@@ -277,22 +304,22 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'To generate a Confluence API token:',
+                'Чтобы создать API токен Confluence:',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               SizedBox(height: 12),
-              Text('1. Go to your Atlassian Account Settings'),
+              Text('1. Перейдите в настройки аккаунта Atlassian'),
               SizedBox(height: 8),
-              Text('2. Navigate to Security > API tokens'),
+              Text('2. Перейдите в Безопасность > API токены'),
               SizedBox(height: 8),
-              Text('3. Click "Create API token"'),
+              Text('3. Нажмите "Создать API токен"'),
               SizedBox(height: 8),
-              Text('4. Give it a descriptive label (e.g., "TeeZeeNator")'),
+              Text('4. Дайте ему описательное название (например, "TeeZeeNator")'),
               SizedBox(height: 8),
-              Text('5. Copy the generated token'),
+              Text('5. Скопируйте созданный токен'),
               SizedBox(height: 12),
               Text(
-                'Important: Save the token securely as you won\'t be able to see it again.',
+                'Важно: Сохраните токен в безопасном месте, так как вы не сможете увидеть его снова.',
                 style: TextStyle(
                   fontStyle: FontStyle.italic,
                   color: Colors.orange,
@@ -304,7 +331,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Got it'),
+            child: const Text('Понятно'),
           ),
         ],
       ),
@@ -314,6 +341,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
   /// Checks if connection test can be performed
   bool get _canTestConnection {
     return _baseUrlController.text.trim().isNotEmpty &&
+           _emailController.text.trim().isNotEmpty &&
            _tokenController.text.trim().isNotEmpty &&
            !_isTestingConnection;
   }
@@ -357,7 +385,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Confluence Integration',
+                    'Интеграция с Confluence',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -375,8 +403,8 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
               
               Text(
                 _isEnabled 
-                    ? 'Connect to your Confluence workspace to reference articles and publish specifications'
-                    : 'Enable to connect to Confluence workspace',
+                    ? 'Подключитесь к вашему рабочему пространству Confluence для ссылок на страницы и публикации спецификаций'
+                    : 'Включите для подключения к рабочему пространству Confluence',
                 style: const TextStyle(
                   color: AppTheme.darkGray,
                   fontSize: 14,
@@ -388,22 +416,22 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                 
                 // Base URL field
                 AccessibleFormField(
-                  label: 'Confluence Base URL',
-                  hint: 'Enter your Confluence domain URL without the API path',
+                  label: 'Базовый URL Confluence',
+                  hint: 'Введите URL вашего домена Confluence без пути API',
                   required: true,
                   enabled: !_isTestingConnection,
                   child: FieldTooltip(
-                    label: 'Base URL',
-                    hint: 'Enter your Confluence domain URL without the API path',
+                    label: 'Базовый URL',
+                    hint: 'Введите URL вашего домена Confluence без пути API',
                     example: 'https://company.atlassian.net',
                     required: true,
                     child: TextFormField(
                       controller: _baseUrlController,
                       focusNode: _baseUrlFocusNode,
                       decoration: InputDecoration(
-                        labelText: 'Base URL *',
+                        labelText: 'Базовый URL *',
                         hintText: 'https://company.atlassian.net',
-                        helperText: 'Your Confluence domain (without /wiki/rest/api)',
+                        helperText: 'Ваш домен Confluence (без /wiki/rest/api)',
                         prefixIcon: const Icon(Icons.link),
                         suffixIcon: _baseUrlController.text.isNotEmpty
                             ? IconButton(
@@ -415,7 +443,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                                     _errorMessage = null;
                                   });
                                 },
-                                tooltip: 'Clear URL',
+                                tooltip: 'Очистить URL',
                               )
                             : null,
                       ),
@@ -439,24 +467,75 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                 
                 const SizedBox(height: 16),
                 
-                // Token field
+                // Email field
                 AccessibleFormField(
-                  label: 'Confluence API Token',
-                  hint: 'Enter your Confluence API token for authentication',
+                  label: 'Электронная почта',
+                  hint: 'Введите ваш адрес электронной почты Atlassian',
                   required: true,
                   enabled: !_isTestingConnection,
                   child: FieldTooltip(
-                    label: 'API Token',
-                    hint: 'Generate API token from Atlassian Account Settings > Security > API tokens',
+                    label: 'Электронная почта',
+                    hint: 'Введите ваш адрес электронной почты Atlassian',
+                    example: 'your.email@company.com',
+                    required: true,
+                    child: TextFormField(
+                      controller: _emailController,
+                      focusNode: _emailFocusNode,
+                      decoration: InputDecoration(
+                        labelText: 'Электронная почта *',
+                        hintText: 'your.email@company.com',
+                        helperText: 'Ваш адрес электронной почты Atlassian',
+                        prefixIcon: const Icon(Icons.email),
+                        suffixIcon: _emailController.text.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18),
+                                onPressed: () {
+                                  _emailController.clear();
+                                  setState(() {
+                                    _connectionSuccess = false;
+                                    _errorMessage = null;
+                                  });
+                                },
+                                tooltip: 'Очистить электронную почту',
+                              )
+                            : null,
+                      ),
+                      validator: _validateEmail,
+                      enabled: !_isTestingConnection,
+                      onChanged: (_) {
+                        // Reset connection status when email changes
+                        if (_connectionSuccess) {
+                          setState(() {
+                            _connectionSuccess = false;
+                            _errorMessage = null;
+                          });
+                        }
+                      },
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Token field
+                AccessibleFormField(
+                  label: 'API токен Confluence',
+                  hint: 'Введите ваш API токен Confluence для аутентификации',
+                  required: true,
+                  enabled: !_isTestingConnection,
+                  child: FieldTooltip(
+                    label: 'API токен',
+                    hint: 'Создайте API токен в Настройках аккаунта Atlassian > Безопасность > API токены',
                     example: 'ATATT3xFfGF0T4JNjBrel...',
                     required: true,
                     child: TextFormField(
                       controller: _tokenController,
                       focusNode: _tokenFocusNode,
                       decoration: InputDecoration(
-                        labelText: 'API Token *',
-                        hintText: 'Your Confluence API token',
-                        helperText: 'Generate from Atlassian Account Settings > Security > API tokens',
+                        labelText: 'API токен *',
+                        hintText: 'Ваш API токен Confluence',
+                        helperText: 'Создайте в Настройках аккаунта Atlassian > Безопасность > API токены',
                         prefixIcon: const Icon(Icons.key),
                         suffixIcon: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -471,12 +550,12 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                                     _errorMessage = null;
                                   });
                                 },
-                                tooltip: 'Clear token',
+                                tooltip: 'Очистить токен',
                               ),
                             IconButton(
                               icon: const Icon(Icons.help_outline, size: 18),
                               onPressed: () => _showTokenHelpDialog(),
-                              tooltip: 'How to generate API token',
+                              tooltip: 'Как создать API токен',
                             ),
                           ],
                         ),
@@ -502,23 +581,23 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                 // Test connection button
                 AccessibleButton(
                   label: _isTestingConnection 
-                      ? 'Testing connection to Confluence, please wait'
+                      ? 'Проверка соединения с Confluence, пожалуйста подождите'
                       : _connectionSuccess
-                          ? 'Connection test successful'
-                          : 'Test connection to Confluence',
+                          ? 'Проверка соединения успешна'
+                          : 'Проверить соединение с Confluence',
                   hint: _isTestingConnection 
-                      ? 'Please wait while we test your connection'
+                      ? 'Пожалуйста подождите, пока мы проверяем ваше соединение'
                       : _connectionSuccess
-                          ? 'Connection established successfully'
-                          : 'Click to test your Confluence connection with the provided credentials',
+                          ? 'Соединение установлено успешно'
+                          : 'Нажмите, чтобы проверить соединение с Confluence с предоставленными учетными данными',
                   enabled: !_isTestingConnection && _canTestConnection,
                   onPressed: _isTestingConnection ? null : _testConnection,
                   child: ButtonTooltip(
                     action: _isTestingConnection 
-                        ? 'Testing connection...'
+                        ? 'Проверка соединения...'
                         : _connectionSuccess
-                            ? 'Connection established successfully'
-                            : 'Test your Confluence connection',
+                            ? 'Соединение установлено успешно'
+                            : 'Проверьте соединение с Confluence',
                     shortcut: 'Ctrl+T',
                     enabled: !_isTestingConnection && _canTestConnection,
                     child: SizedBox(
@@ -540,10 +619,10 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                               ),
                         label: Text(
                           _isTestingConnection
-                              ? 'Testing Connection...'
+                              ? 'Проверка соединения...'
                               : _connectionSuccess
-                                  ? 'Connection Successful'
-                                  : 'Test Connection',
+                                  ? 'Соединение установлено'
+                                  : 'Проверить соединение',
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _connectionSuccess 
@@ -610,7 +689,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Connection established successfully! You can now save the configuration.',
+                            'Соединение установлено успешно! Теперь вы можете сохранить конфигурацию.',
                             style: TextStyle(
                               color: Colors.green.shade700,
                               fontSize: 14,
@@ -638,7 +717,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Connection not tested yet. You can save as draft or test connection first.',
+                            'Соединение ещё не проверено. Вы можете сохранить как черновик или сначала проверить соединение.',
                             style: TextStyle(
                               color: Colors.amber.shade700,
                               fontSize: 14,
@@ -654,17 +733,17 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                   // Save button (всегда активна, если заполнены обязательные поля)
                   AccessibleButton(
                     label: _connectionSuccess 
-                        ? 'Save Confluence configuration'
-                        : 'Save Confluence configuration as draft',
+                        ? 'Сохранить конфигурацию Confluence'
+                        : 'Сохранить конфигурацию Confluence как черновик',
                     hint: _connectionSuccess 
-                        ? 'Save your Confluence configuration to enable integration features'
-                        : 'Save your configuration as draft (connection not verified)',
+                        ? 'Сохранить вашу конфигурацию Confluence для включения функций интеграции'
+                        : 'Сохранить вашу конфигурацию как черновик (соединение не проверено)',
                     enabled: _canTestConnection, // Активна, если заполнены обязательные поля
                     onPressed: _canTestConnection ? _saveConfiguration : null,
                     child: ButtonTooltip(
                       action: _connectionSuccess 
-                          ? 'Save your Confluence configuration'
-                          : 'Save your configuration as draft',
+                          ? 'Сохранить вашу конфигурацию Confluence'
+                          : 'Сохранить вашу конфигурацию как черновик',
                       shortcut: 'Ctrl+S',
                       enabled: _canTestConnection,
                       child: SizedBox(
@@ -672,7 +751,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                         child: ElevatedButton.icon(
                           onPressed: _canTestConnection ? _saveConfiguration : null,
                           icon: const Icon(Icons.save, color: Colors.white),
-                          label: Text(_connectionSuccess ? 'Save Configuration' : 'Save as Draft'),
+                          label: Text(_connectionSuccess ? 'Сохранить конфигурацию' : 'Сохранить как черновик'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _connectionSuccess ? AppTheme.primaryRed : Colors.amber.shade700,
                             padding: const EdgeInsets.symmetric(vertical: 16),

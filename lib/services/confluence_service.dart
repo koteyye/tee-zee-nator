@@ -8,7 +8,6 @@ import '../models/confluence_page.dart';
 import '../exceptions/confluence_exceptions.dart';
 import 'confluence_error_handler.dart';
 import 'input_sanitizer.dart';
-import 'secure_token_storage.dart';
 
 /// Service for managing Confluence API interactions
 /// 
@@ -65,13 +64,14 @@ class ConfluenceService extends ChangeNotifier {
   /// - API accessibility
   /// 
   /// Returns true if connection is successful, false otherwise
-  Future<bool> testConnection(String baseUrl, String token) async {
+  Future<bool> testConnection(String baseUrl, String email, String token) async {
     // Sanitize inputs first
     final sanitizedUrl = InputSanitizer.sanitizeBaseUrl(baseUrl);
+    final sanitizedEmail = InputSanitizer.sanitizeEmail(email);
     final sanitizedToken = InputSanitizer.sanitizeApiToken(token);
     
-    if (sanitizedUrl.isEmpty || sanitizedToken.isEmpty) {
-      _setError('Base URL and token are required for connection test');
+    if (sanitizedUrl.isEmpty || sanitizedEmail.isEmpty || sanitizedToken.isEmpty) {
+      _setError('Base URL, email, and token are required for connection test');
       return false;
     }
 
@@ -79,18 +79,41 @@ class ConfluenceService extends ChangeNotifier {
     _clearError();
 
     try {
-      // Use sanitized URL
-      final healthCheckUrl = '$sanitizedUrl/wiki/rest/api/space';
+      // Build health check URL dynamically:
+      // - Atlassian Cloud uses '/wiki/rest/api'
+      // - Self-hosted/DC typically uses '/rest/api'
+      // - If base has a context path (e.g., /confluence), preserve it
+      final uri = Uri.parse(sanitizedUrl);
+      final baseSegments = List<String>.from(uri.pathSegments);
+      final hasWikiInBase = baseSegments.contains('wiki');
+      final isAtlassianCloud = uri.host.endsWith('.atlassian.net');
+
+      final pathSegments = <String>[
+        ...baseSegments,
+        if (isAtlassianCloud && !hasWikiInBase) 'wiki',
+        'rest',
+        'api',
+        'space',
+      ];
+
+      final healthUri = Uri(
+        scheme: uri.scheme,
+        host: uri.host,
+        port: uri.port == 0 ? null : uri.port,
+        pathSegments: pathSegments,
+      );
+      final healthCheckUrl = healthUri.toString();
       
-      // Log connection attempt (without exposing token)
+      // Log connection attempt (without exposing credentials)
       ConfluenceErrorHandler.logConnectionAttempt(sanitizedUrl, token: '[REDACTED]');
       
       // Create HTTP client if not exists
       _httpClient ??= http.Client();
       
-      // Prepare request with authentication using sanitized token
+      // Prepare request with authentication using email:token format
+      final authToken = '$sanitizedEmail:$sanitizedToken';
       final request = http.Request('GET', Uri.parse(healthCheckUrl));
-      request.headers.addAll(_buildHeaders(sanitizedToken));
+      request.headers.addAll(_buildHeaders(authToken));
       
       // Log API request
       ConfluenceErrorHandler.logApiRequest('GET', healthCheckUrl, headers: request.headers);
@@ -294,19 +317,120 @@ class ConfluenceService extends ChangeNotifier {
     }
   }
 
+  /// Resolves a page ID from a Confluence tiny URL (e.g., /x/KEY)
+  ///
+  /// [tinyUrl] - The tiny URL to resolve
+  /// Returns the resolved page ID or null if not found
+  Future<String?> resolvePageIdFromUrl(String tinyUrl) async {
+    if (!isConfigured) {
+      ConfluenceErrorHandler.logInfo(
+        'resolvePageIdFromUrl skipped: service not configured',
+        context: 'ConfluenceService.resolvePageIdFromUrl',
+      );
+      return null;
+    }
+    
+    // Sanitize the URL input
+    final sanitizedUrl = InputSanitizer.sanitizePageUrl(tinyUrl);
+    if (sanitizedUrl.isEmpty) {
+      ConfluenceErrorHandler.logWarning(
+        'resolvePageIdFromUrl: sanitized URL is empty',
+        context: 'ConfluenceService.resolvePageIdFromUrl',
+      );
+      return null;
+    }
+    
+    try {
+      // For tiny URLs like /x/KEY, we need to follow the redirect to get the actual page URL
+      final fullUrl = sanitizedUrl.startsWith('http')
+          ? sanitizedUrl
+          : '${_config!.sanitizedBaseUrl}$sanitizedUrl';
+      
+      ConfluenceErrorHandler.logInfo(
+        'Resolving pageId from URL: $fullUrl',
+        context: 'ConfluenceService.resolvePageIdFromUrl',
+      );
+
+      final request = http.Request('GET', Uri.parse(fullUrl));
+      
+      // Get secure token
+      final secureToken = await _config!.getSecureToken();
+      if (secureToken != null && secureToken.isNotEmpty) {
+        request.headers.addAll(_buildHeaders(secureToken));
+      }
+      
+      // Follow redirects manually to get the final URL
+      request.followRedirects = false;
+      final response = await _sendRequestWithRetry(request);
+      
+      ConfluenceErrorHandler.logInfo(
+        'Tiny-link resolve response: status=${response.statusCode}, location=${response.headers['location'] ?? 'null'}',
+        context: 'ConfluenceService.resolvePageIdFromUrl',
+      );
+
+      if (response.statusCode == 302 || response.statusCode == 301) {
+        final location = response.headers['location'];
+        if (location != null) {
+          // Extract page ID from the redirect location
+          final fromRedirect = ConfluencePage.extractPageIdFromUrl(location);
+          ConfluenceErrorHandler.logInfo(
+            'Extracted pageId from redirect location: ${fromRedirect ?? 'null'}',
+            context: 'ConfluenceService.resolvePageIdFromUrl',
+          );
+          return fromRedirect;
+        }
+      }
+      
+      // If it's already a direct page URL, extract ID directly
+      final direct = ConfluencePage.extractPageIdFromUrl(fullUrl);
+      ConfluenceErrorHandler.logInfo(
+        'Extracted pageId directly from URL: ${direct ?? 'null'}',
+        context: 'ConfluenceService.resolvePageIdFromUrl',
+      );
+      return direct;
+    } catch (e) {
+      ConfluenceErrorHandler.logWarning(
+        'Failed to resolve page ID from tiny URL: $e',
+        context: 'ConfluenceService.resolvePageIdFromUrl',
+      );
+      return null;
+    }
+  }
+
   /// Builds HTTP headers for Confluence API requests
-  Map<String, String> _buildHeaders(String token) {
-    // Sanitize token before encoding
-    final sanitizedToken = InputSanitizer.sanitizeApiToken(token);
-    if (sanitizedToken.isEmpty) {
+  Map<String, String> _buildHeaders(String authCredentials) {
+    // For testConnection calls, authCredentials is already in email:token format
+    // For regular API calls from configured service, we use the legacy method
+    if (authCredentials.isEmpty) {
       throw const ConfluenceValidationException(
-        'Invalid authentication token',
-        fieldName: 'token',
-        recoveryAction: 'Reconfigure Confluence connection with a valid token',
+        'Invalid authentication credentials',
+        fieldName: 'credentials',
+        recoveryAction: 'Reconfigure Confluence connection with valid credentials',
       );
     }
     
-    final credentials = base64Encode(utf8.encode(sanitizedToken));
+    // Determine if this is already email:token format or needs processing
+    String finalCredentials;
+    if (authCredentials.contains(':')) {
+      // Already in email:token format (from testConnection)
+      finalCredentials = authCredentials;
+    } else {
+      // Legacy token format, need to add email from config
+      final sanitizedToken = InputSanitizer.sanitizeApiToken(authCredentials);
+      if (sanitizedToken.isEmpty) {
+        throw const ConfluenceValidationException(
+          'Invalid authentication token',
+          fieldName: 'token',
+          recoveryAction: 'Reconfigure Confluence connection with a valid token',
+        );
+      }
+      
+      // Get email from configuration
+      final email = _extractEmailFromConfig() ?? 'user@domain.com';
+      finalCredentials = '$email:$sanitizedToken';
+    }
+    
+    final credentials = base64Encode(utf8.encode(finalCredentials));
     
     return {
       'Authorization': 'Basic $credentials',
@@ -314,6 +438,12 @@ class ConfluenceService extends ChangeNotifier {
       'Accept': 'application/json',
       'User-Agent': _userAgent,
     };
+  }
+  
+  /// Extracts email from configuration or returns null
+  String? _extractEmailFromConfig() {
+    // Return the email from the configuration if available
+    return _config?.email.isNotEmpty == true ? _config!.email : null;
   }
 
   /// Sends HTTP request with retry logic and error handling

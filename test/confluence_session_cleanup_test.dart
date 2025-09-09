@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/confluence_content_processor.dart';
-import '../lib/services/confluence_service.dart';
-import '../lib/services/confluence_session_manager.dart';
-import '../lib/models/confluence_config.dart';
+import 'package:tee_zee_nator/services/confluence_content_processor.dart';
+import 'package:tee_zee_nator/services/confluence_service.dart';
+import 'package:tee_zee_nator/services/confluence_session_manager.dart';
+import 'package:tee_zee_nator/models/confluence_config.dart';
 
 void main() {
   group('Confluence Session Cleanup', () {

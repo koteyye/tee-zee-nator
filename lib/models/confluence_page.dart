@@ -50,10 +50,22 @@ class ConfluencePage {
 
   /// Extracts page ID from Confluence URL
   static String? extractPageIdFromUrl(String url) {
-    // Pattern: https://domain.atlassian.net/wiki/spaces/SPACE/pages/123456/Page+Title
-    final pageIdRegex = RegExp(r'/pages/(\d+)(?:/|$)');
-    final match = pageIdRegex.firstMatch(url);
-    return match?.group(1);
+    // Try /pages/{id}
+    final pagesIdRegex = RegExp(r'/pages/(\d+)(?:/|$)');
+    final m1 = pagesIdRegex.firstMatch(url);
+    if (m1 != null) return m1.group(1);
+
+    // Try query param pageId=123456 (viewpage.action?pageId=123456)
+    try {
+      final uri = Uri.parse(url);
+      final qpId = uri.queryParameters['pageId'];
+      if (qpId != null && RegExp(r'^\d+$').hasMatch(qpId)) {
+        return qpId;
+      }
+    } catch (_) {}
+
+    // No ID detected
+    return null;
   }
 
   /// Validates if the URL is a valid Confluence page URL

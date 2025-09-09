@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
@@ -6,8 +5,6 @@ import 'package:mockito/mockito.dart';
 import 'package:provider/provider.dart';
 
 import 'package:tee_zee_nator/models/confluence_config.dart';
-import 'package:tee_zee_nator/models/publish_result.dart';
-import 'package:tee_zee_nator/services/confluence_publisher.dart';
 import 'package:tee_zee_nator/services/confluence_service.dart';
 import 'package:tee_zee_nator/widgets/main_screen/confluence_publish_modal.dart';
 

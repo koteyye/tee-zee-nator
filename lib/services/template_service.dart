@@ -46,9 +46,7 @@ class TemplateService extends ChangeNotifier {
         _cachedActiveTemplate = _templatesBox.get(activeId);
       }
       
-      if (_cachedActiveTemplate == null) {
-        _cachedActiveTemplate = _templatesBox.get(_defaultTemplateKey);
-      }
+      _cachedActiveTemplate ??= _templatesBox.get(_defaultTemplateKey);
     } catch (e) {
       log('Error updating cached active template: $e');
       _cachedActiveTemplate = null;

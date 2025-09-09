@@ -23,10 +23,10 @@ class ConfluenceHintWidget extends StatelessWidget {
         }
 
         return Semantics(
-          label: 'Confluence integration hint',
-          hint: 'Information about using Confluence links in requirements',
+          label: 'Подсказка по интеграции с Confluence',
+          hint: 'Информация об использовании ссылок Confluence в требованиях',
           child: Tooltip(
-            message: 'Paste Confluence article URLs directly into your requirements. The content will be automatically processed.',
+            message: 'Вставляйте URL страниц Confluence прямо в требования — содержимое будет обработано автоматически.',
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
@@ -57,7 +57,7 @@ class ConfluenceHintWidget extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'You can specify links to Confluence articles with information to consider in requirements',
+                      'Можно указывать ссылки на статьи Confluence с информацией, которую нужно учесть в требованиях',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.blue.shade700,

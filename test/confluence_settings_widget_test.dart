@@ -42,7 +42,7 @@ class MockConfluenceService extends ChangeNotifier implements ConfluenceService 
   }
 
   @override
-  Future<bool> testConnection(String baseUrl, String token) async {
+  Future<bool> testConnection(String baseUrl, String email, String token) async {
     _isLoading = true;
     notifyListeners();
     
@@ -67,6 +67,12 @@ class MockConfluenceService extends ChangeNotifier implements ConfluenceService 
   @override
   Future<ConfluencePage> getPageInfo(String pageUrl) async {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<String?> resolvePageIdFromUrl(String tinyUrl) async {
+    // Для тестов можно вернуть null
+    return null;
   }
 
   // Test helper methods

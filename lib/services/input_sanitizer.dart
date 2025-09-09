@@ -94,6 +94,36 @@ class InputSanitizer {
     }
   }
 
+  /// Sanitizes an email address for Confluence authentication
+  /// 
+  /// [email] - The email to sanitize
+  /// Returns sanitized email or empty string if invalid
+  static String sanitizeEmail(String email) {
+    if (email.isEmpty) return '';
+
+    try {
+      // Remove control characters and trim
+      String sanitized = _removeControlCharacters(email).trim();
+      
+      // Remove potentially dangerous characters
+      sanitized = sanitized
+          .replaceAll(RegExp(r'[<>"\s]'), '')
+          .replaceAll("'", '');
+      
+      // Validate email format
+      if (!_isValidEmailFormat(sanitized)) {
+        debugPrint('InputSanitizer: Invalid email format');
+        return '';
+      }
+      
+      return sanitized;
+      
+    } catch (e) {
+      debugPrint('InputSanitizer: Email sanitization failed: $e');
+      return '';
+    }
+  }
+
   /// Sanitizes text content that may contain Confluence links
   /// 
   /// [content] - The content to sanitize
@@ -333,22 +363,38 @@ class InputSanitizer {
 
   /// Validates Confluence URL pattern
   static bool _isValidConfluenceUrl(String url) {
-    // Basic Confluence URL validation
-    final confluencePattern = RegExp(r'^https://[a-zA-Z0-9.-]+\.atlassian\.net/?$');
-    return confluencePattern.hasMatch(url) || 
-           url.contains('.atlassian.net') ||
-           url.contains('/wiki/');
+    // Accept both Atlassian Cloud and self-hosted/DC instances.
+    // We only require a valid HTTP(S) URL with an authority.
+    try {
+      final uri = Uri.parse(url);
+      final hasValidBase = uri.hasScheme &&
+          (uri.scheme == 'http' || uri.scheme == 'https') &&
+          uri.hasAuthority &&
+          uri.host.isNotEmpty;
+      if (!hasValidBase) return false;
+
+      // If it's Atlassian Cloud, host ends with .atlassian.net (with or without /wiki).
+      // For self-hosted/DC, any valid host (e.g., confluence.company.ru) is allowed,
+      // with or without a context path (e.g., /confluence).
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Validates Confluence page URL pattern
   static bool _isValidConfluencePageUrl(String url) {
-    // Confluence page URL patterns
+    // Support Atlassian Cloud and self-hosted/DC, with or without '/wiki', and tiny links '/x/...'
     final pagePatterns = [
-      RegExp(r'^https://[^/]+/wiki/spaces/[^/]+/pages/\d+/'),
-      RegExp(r'^https://[^/]+/wiki/display/[^/]+/'),
-      RegExp(r'^https://[^/]+/pages/viewpage\.action\?pageId=\d+'),
+      // /spaces/.../pages/{id}
+      RegExp(r'^https://[^/]+/(?:wiki/)?spaces/[^/]+/pages/\d+(/|$)', caseSensitive: false),
+      // /display/SPACE/Page
+      RegExp(r'^https://[^/]+/(?:wiki/)?display/[^/]+/', caseSensitive: false),
+      // viewpage.action?pageId=123
+      RegExp(r'^https://[^/]+/(?:wiki/)?pages/viewpage\.action\?pageId=\d+', caseSensitive: false),
+      // Tiny links: /x/KEY
+      RegExp(r'^https://[^/]+/x/[A-Za-z0-9_-]+', caseSensitive: false),
     ];
-    
     return pagePatterns.any((pattern) => pattern.hasMatch(url));
   }
 
@@ -362,6 +408,18 @@ class InputSanitizer {
     // Check for valid characters (alphanumeric, +, /, =, -, _)
     final validTokenPattern = RegExp(r'^[A-Za-z0-9+/=_-]+$');
     return validTokenPattern.hasMatch(token);
+  }
+
+  /// Validates email format
+  static bool _isValidEmailFormat(String email) {
+    // Basic email validation
+    if (email.length < 5 || email.length > 254) {
+      return false;
+    }
+    
+    // Check for valid email pattern
+    final emailPattern = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return emailPattern.hasMatch(email);
   }
 
   /// Validates input length to prevent DoS attacks

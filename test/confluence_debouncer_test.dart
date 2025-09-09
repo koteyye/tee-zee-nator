@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/services/confluence_debouncer.dart';
+import 'package:tee_zee_nator/services/confluence_debouncer.dart';
 
 /// Tests for the ConfluenceDebouncer service
 /// 

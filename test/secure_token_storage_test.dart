@@ -118,7 +118,8 @@ void main() {
       test('should remove HTML injection characters', () {
         const tokenWithHtml = 'ATATT3xFfGF0<script>alert("xss")</script>abcdef';
         final sanitized = SecureTokenStorage.sanitizeTokenInput(tokenWithHtml);
-        expect(sanitized, equals('ATATT3xFfGF0scriptalert(xss)/scriptabcdef'));
+        // After removing HTML characters, the token becomes too short and is rejected
+        expect(sanitized, isEmpty);
       });
 
       test('should return empty string for invalid token format', () {
@@ -204,8 +205,8 @@ void main() {
         );
 
         final token = await SecureTokenStorage.getConfluenceToken();
-        // Should handle decryption failure gracefully
-        expect(token, anyOf(isNull, isEmpty));
+        // Should handle decryption failure gracefully by returning null
+        expect(token, isNull);
       });
     });
 
@@ -232,6 +233,8 @@ void main() {
         final info = await SecureTokenStorage.getStorageInfo();
         expect(info.containsKey('error'), isTrue);
         expect(info.containsKey('timestamp'), isTrue);
+        // When storage fails, hasToken should be false
+        expect(info['hasToken'], isFalse);
       });
     });
 

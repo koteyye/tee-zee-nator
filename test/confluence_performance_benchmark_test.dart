@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
-import '../lib/services/confluence_performance_optimizer.dart';
-import '../lib/services/confluence_content_processor.dart';
-import '../lib/services/confluence_service.dart';
-import '../lib/models/confluence_config.dart';
+import 'package:tee_zee_nator/services/confluence_performance_optimizer.dart';
+import 'package:tee_zee_nator/services/confluence_content_processor.dart';
+import 'package:tee_zee_nator/services/confluence_service.dart';
+import 'package:tee_zee_nator/models/confluence_config.dart';
 
 @GenerateMocks([ConfluenceService])
 import 'confluence_performance_benchmark_test.mocks.dart';
@@ -264,7 +264,7 @@ void main() {
         expect(memoryUsageMB, lessThan(10.0)); // Should not exceed limit
         expect(memoryUtilization, lessThan(100.0)); // Should not be at 100%
         
-        print('Memory usage: ${memoryUsageMB}MB (${memoryUtilization}% utilization)');
+        print('Memory usage: ${memoryUsageMB}MB ($memoryUtilization% utilization)');
         print('Cache size: ${metrics['cacheSize']} entries');
 
         processor.dispose();

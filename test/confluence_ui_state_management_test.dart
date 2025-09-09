@@ -17,7 +17,6 @@ import 'package:tee_zee_nator/widgets/main_screen/confluence_settings_widget.dar
 import 'package:tee_zee_nator/widgets/main_screen/input_panel.dart';
 import 'package:tee_zee_nator/widgets/main_screen/result_panel.dart';
 import 'package:tee_zee_nator/widgets/main_screen/confluence_publish_modal.dart';
-import 'package:tee_zee_nator/screens/setup_screen.dart';
 import 'package:tee_zee_nator/screens/main_screen.dart';
 
 @GenerateMocks([

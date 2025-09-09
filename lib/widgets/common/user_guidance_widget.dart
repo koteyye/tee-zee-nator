@@ -329,61 +329,57 @@ class ConfluenceGuidanceWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     if (isConfluenceEnabled && hasValidConnection) {
       return UserGuidanceWidget(
-        title: 'Confluence Integration Active',
-        message: 'You can now include Confluence links in your requirements!',
+        title: 'Интеграция с Confluence активна',
+        message: 'Теперь можно добавлять ссылки Confluence в требования!',
         icon: Icons.check_circle,
         backgroundColor: Colors.green.shade50,
         steps: const [
           GuidanceStep(
-            title: 'Paste Confluence page URLs directly in requirements',
-            description: 'The system will automatically fetch and process the content',
+            title: 'Вставляйте ссылки на страницы Confluence прямо в требования',
+            description: 'Система автоматически получит и обработает содержимое',
             isCompleted: true,
           ),
           GuidanceStep(
-            title: 'Generate specifications with Confluence content',
-            description: 'Your specifications will include relevant information from linked pages',
+            title: 'Генерируйте спецификации с учетом контента из Confluence',
+            description: 'Спецификация включит релевантную информацию со связанных страниц',
           ),
           GuidanceStep(
-            title: 'Publish back to Confluence',
-            description: 'Use the "Publish to Confluence" button to share your generated specs',
+            title: 'Публикуйте обратно в Confluence',
+            description: 'Используйте кнопку «Опубликовать в Confluence», чтобы поделиться ТЗ',
           ),
         ],
       );
     } else if (isConfluenceEnabled && !hasValidConnection) {
       return UserGuidanceWidget(
-        title: 'Confluence Connection Issue',
-        message: 'Your Confluence integration needs attention.',
+        title: 'Проблема с подключением к Confluence',
+        message: 'Интеграция с Confluence требует внимания.',
         icon: Icons.warning,
         backgroundColor: Colors.orange.shade50,
-        actionLabel: 'Fix Connection',
+        actionLabel: 'Исправить подключение',
         onAction: () {
           // Navigate to settings
         },
       );
     } else {
       return UserGuidanceWidget(
-        title: 'Enable Confluence Integration',
-        message: 'Connect to Confluence to reference existing documentation in your specifications.',
+        title: 'Включите интеграцию с Confluence',
+        message: 'Подключите Confluence, чтобы ссылаться на существующую документацию в ваших спецификациях.',
         icon: Icons.link,
         backgroundColor: Colors.blue.shade50,
         steps: const [
           GuidanceStep(
-            title: 'Go to Settings',
-            description: 'Click the Settings button in the top right',
+            title: 'Перейдите в Настройки',
+            description: 'Нажмите кнопку «Настройки» в правом верхнем углу',
           ),
           GuidanceStep(
-            title: 'Enable Confluence Integration',
-            description: 'Toggle the Confluence switch and enter your credentials',
+            title: 'Включите интеграцию Confluence',
+            description: 'Переключите тумблер Confluence и введите учетные данные',
           ),
           GuidanceStep(
-            title: 'Test Connection',
-            description: 'Verify your connection works before saving',
+            title: 'Проверьте подключение',
+            description: 'Убедитесь, что подключение работает, перед сохранением',
           ),
         ],
-        actionLabel: 'Open Settings',
-        onAction: () {
-          // Navigate to settings
-        },
       );
     }
   }

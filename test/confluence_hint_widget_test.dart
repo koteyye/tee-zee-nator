@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-import '../lib/widgets/main_screen/confluence_hint_widget.dart';
-import '../lib/services/config_service.dart';
-import '../lib/models/app_config.dart';
-import '../lib/models/confluence_config.dart';
-import '../lib/models/output_format.dart';
+import 'package:tee_zee_nator/widgets/main_screen/confluence_hint_widget.dart';
+import 'package:tee_zee_nator/services/config_service.dart';
+import 'package:tee_zee_nator/models/app_config.dart';
+import 'package:tee_zee_nator/models/confluence_config.dart';
+import 'package:tee_zee_nator/models/output_format.dart';
 
 // Manual mock class following the project pattern
 class MockConfigService extends ChangeNotifier implements ConfigService {

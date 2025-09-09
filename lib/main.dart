@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
         title: 'TeeZeeNator',
         theme: AppTheme.light,
         home: FutureBuilder<bool>(
-          future: _initializeServices(),
+          future: Future.delayed(Duration.zero, () => _initializeServices(context)),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(
@@ -62,17 +62,16 @@ class MyApp extends StatelessWidget {
     );
   }
   
-  Future<bool> _initializeServices() async {
+  Future<bool> _initializeServices(BuildContext context) async {
     try {
-      // Получаем существующие инстансы сервисов через BuildContext
-      final context = WidgetsBinding.instance.rootElement as BuildContext;
+      // Get service instances from Provider context
       final configService = Provider.of<ConfigService>(context, listen: false);
       final templateService = Provider.of<TemplateService>(context, listen: false);
       
-      // Инициализируем TemplateService
+      // Initialize TemplateService
       await templateService.init();
       
-      // Проверяем конфигурацию
+      // Check configuration
       return await configService.hasValidConfiguration();
     } catch (e) {
       print('Error initializing services: $e');

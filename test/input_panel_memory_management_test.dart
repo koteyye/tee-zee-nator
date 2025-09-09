@@ -3,14 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart';
 import 'package:provider/provider.dart';
-import '../lib/widgets/main_screen/input_panel.dart';
-import '../lib/services/config_service.dart';
-import '../lib/services/confluence_service.dart';
-import '../lib/services/confluence_content_processor.dart';
-import '../lib/services/confluence_session_manager.dart';
-import '../lib/models/confluence_config.dart';
-import '../lib/models/generation_history.dart';
-import '../lib/models/output_format.dart';
+import 'package:tee_zee_nator/widgets/main_screen/input_panel.dart';
+import 'package:tee_zee_nator/services/config_service.dart';
+import 'package:tee_zee_nator/services/confluence_service.dart';
+import 'package:tee_zee_nator/services/confluence_session_manager.dart';
+import 'package:tee_zee_nator/models/confluence_config.dart';
 
 @GenerateMocks([ConfigService, ConfluenceService])
 import 'input_panel_memory_management_test.mocks.dart';

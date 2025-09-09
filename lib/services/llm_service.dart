@@ -5,6 +5,8 @@ import '../exceptions/content_processing_exceptions.dart';
 import 'llm_provider.dart';
 import 'openai_provider.dart';
 import 'llmops_provider.dart';
+import 'cerebras_provider.dart';
+import 'groq_provider.dart';
 
 class LLMService extends ChangeNotifier {
   LLMProvider? _provider;
@@ -26,13 +28,25 @@ class LLMService extends ChangeNotifier {
   void initializeProvider(AppConfig config) {
     _config = config;
     
+    print('LLMService: Initializing provider for: ${config.provider}');
+    
     switch (config.provider) {
       case 'llmops':
         _provider = LLMOpsProvider(config);
+        print('LLMService: Initialized LLMOpsProvider');
+        break;
+      case 'cerebras':
+        _provider = CerebrasProvider(config);
+        print('LLMService: Initialized CerebrasProvider with token: ${config.cerebrasToken?.substring(0, 10)}...');
+        break;
+      case 'groq':
+        _provider = GroqProvider(config);
+        print('LLMService: Initialized GroqProvider with token: ${config.groqToken?.substring(0, 10)}...');
         break;
       case 'openai':
       default:
         _provider = OpenAIProvider(config);
+        print('LLMService: Initialized OpenAIProvider');
         break;
     }
     
@@ -50,9 +64,17 @@ class LLMService extends ChangeNotifier {
   
   /// Получает список доступных моделей
   Future<List<String>> getModels() async {
-    if (_provider == null) return [];
+    if (_provider == null) {
+      print('LLMService: getModels called but provider is null');
+      return [];
+    }
+    
+    print('LLMService: Getting models for provider: ${_config?.provider}');
     
     final models = await _provider!.getModels();
+    
+    print('LLMService: Got ${models.length} models: $models');
+    
     notifyListeners();
     return models;
   }

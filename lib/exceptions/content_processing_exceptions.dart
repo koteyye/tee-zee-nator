@@ -29,10 +29,10 @@ abstract class ContentProcessingException implements Exception {
 /// Exception thrown when Markdown processing fails
 class MarkdownProcessingException extends ContentProcessingException {
   const MarkdownProcessingException(
-    String message, {
-    String? recoveryAction,
-    String? technicalDetails,
-  }) : super(message, recoveryAction: recoveryAction, technicalDetails: technicalDetails);
+    super.message, {
+    super.recoveryAction,
+    super.technicalDetails,
+  });
   
   @override
   String toString() => 'MarkdownProcessingException: $message';
@@ -41,10 +41,10 @@ class MarkdownProcessingException extends ContentProcessingException {
 /// Exception thrown when HTML processing fails
 class HtmlProcessingException extends ContentProcessingException {
   const HtmlProcessingException(
-    String message, {
-    String? recoveryAction,
-    String? technicalDetails,
-  }) : super(message, recoveryAction: recoveryAction, technicalDetails: technicalDetails);
+    super.message, {
+    super.recoveryAction,
+    super.technicalDetails,
+  });
   
   @override
   String toString() => 'HtmlProcessingException: $message';
@@ -55,11 +55,11 @@ class LLMResponseValidationException extends ContentProcessingException {
   final String rawResponse;
   
   const LLMResponseValidationException(
-    String message,
+    super.message,
     this.rawResponse, {
-    String? recoveryAction,
-    String? technicalDetails,
-  }) : super(message, recoveryAction: recoveryAction, technicalDetails: technicalDetails);
+    super.recoveryAction,
+    super.technicalDetails,
+  });
   
   @override
   String toString() => 'LLMResponseValidationException: $message';
@@ -72,14 +72,14 @@ class EscapeMarkerException extends LLMResponseValidationException {
   final bool hasContent;
   
   const EscapeMarkerException(
-    String message,
-    String rawResponse, {
+    super.message,
+    super.rawResponse, {
     required this.hasStartMarker,
     required this.hasEndMarker,
     required this.hasContent,
-    String? recoveryAction,
-    String? technicalDetails,
-  }) : super(message, rawResponse, recoveryAction: recoveryAction, technicalDetails: technicalDetails);
+    super.recoveryAction,
+    super.technicalDetails,
+  });
   
   @override
   String toString() => 'EscapeMarkerException: $message';
@@ -91,12 +91,12 @@ class ContentFormatException extends ContentProcessingException {
   final String actualFormat;
   
   const ContentFormatException(
-    String message,
+    super.message,
     this.expectedFormat,
     this.actualFormat, {
-    String? recoveryAction,
-    String? technicalDetails,
-  }) : super(message, recoveryAction: recoveryAction, technicalDetails: technicalDetails);
+    super.recoveryAction,
+    super.technicalDetails,
+  });
   
   @override
   String toString() => 'ContentFormatException: $message';
@@ -107,11 +107,11 @@ class ContentExtractionException extends ContentProcessingException {
   final String processorType;
   
   const ContentExtractionException(
-    String message,
+    super.message,
     this.processorType, {
-    String? recoveryAction,
-    String? technicalDetails,
-  }) : super(message, recoveryAction: recoveryAction, technicalDetails: technicalDetails);
+    super.recoveryAction,
+    super.technicalDetails,
+  });
   
   @override
   String toString() => 'ContentExtractionException: $message';

@@ -233,9 +233,16 @@ class ConfluencePerformanceOptimizer {
   /// Fetches content for a single link
   Future<String> _fetchLinkContent(String linkUrl, ConfluenceConfig config) async {
     try {
-      final pageId = ConfluenceLink.extractPageIdFromUrl(linkUrl);
+      // Try to extract pageId directly
+      String? pageId = ConfluenceLink.extractPageIdFromUrl(linkUrl);
+
+      // If it's a tiny link (/x/KEY) or pageId not in URL, try to resolve via service
+      if (pageId == null && linkUrl.contains('/x/')) {
+        pageId = await _confluenceService.resolvePageIdFromUrl(linkUrl);
+      }
+
       if (pageId == null) {
-        return linkUrl; // Return original URL if invalid
+        return linkUrl; // Return original URL if invalid/unresolved
       }
       
       final content = await _confluenceService.getPageContent(pageId);

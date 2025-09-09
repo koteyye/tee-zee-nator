@@ -1,12 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
-import '../lib/services/error_handler_service.dart';
-import '../lib/exceptions/content_processing_exceptions.dart';
-import '../lib/widgets/main_screen/fallback_processor.dart';
-import '../lib/widgets/main_screen/markdown_processor.dart';
-import '../lib/widgets/main_screen/html_processor.dart';
-import '../lib/widgets/main_screen/content_processor.dart';
-import '../lib/models/output_format.dart';
+import 'package:tee_zee_nator/services/error_handler_service.dart';
+import 'package:tee_zee_nator/exceptions/content_processing_exceptions.dart';
+import 'package:tee_zee_nator/widgets/main_screen/fallback_processor.dart';
+import 'package:tee_zee_nator/widgets/main_screen/markdown_processor.dart';
+import 'package:tee_zee_nator/widgets/main_screen/html_processor.dart';
+import 'package:tee_zee_nator/widgets/main_screen/content_processor.dart';
+import 'package:tee_zee_nator/models/output_format.dart';
 
 void main() {
   group('ErrorHandlerService', () {

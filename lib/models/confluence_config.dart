@@ -22,6 +22,9 @@ class ConfluenceConfig {
   
   @HiveField(4)
   final bool isValid;
+  
+  @HiveField(5)
+  final String email; // Email address for Confluence authentication
 
   const ConfluenceConfig({
     required this.enabled,
@@ -29,6 +32,7 @@ class ConfluenceConfig {
     required this.token,
     this.lastValidated,
     this.isValid = false,
+    this.email = '',
   });
 
   factory ConfluenceConfig.fromJson(Map<String, dynamic> json) => 
@@ -42,6 +46,7 @@ class ConfluenceConfig {
       enabled: false,
       baseUrl: '',
       token: '',
+      email: '',
       isValid: false,
     );
   }
@@ -53,6 +58,7 @@ class ConfluenceConfig {
     String? token,
     DateTime? lastValidated,
     bool? isValid,
+    String? email,
   }) {
     return ConfluenceConfig(
       enabled: enabled ?? this.enabled,
@@ -60,12 +66,13 @@ class ConfluenceConfig {
       token: token ?? this.token,
       lastValidated: lastValidated ?? this.lastValidated,
       isValid: isValid ?? this.isValid,
+      email: email ?? this.email,
     );
   }
 
   /// Validates the configuration completeness
   bool get isConfigurationComplete {
-    return enabled && baseUrl.isNotEmpty && token.isNotEmpty;
+    return enabled && baseUrl.isNotEmpty && token.isNotEmpty && email.isNotEmpty;
   }
 
   /// Returns sanitized base URL (removes trailing slashes and wiki/rest/api suffix)
@@ -86,30 +93,51 @@ class ConfluenceConfig {
   }
 
   /// Returns the full API base URL
+  /// - Cloud: https://<host>/wiki/rest/api (unless base already contains /wiki)
+  /// - DC/Server: https://<host>/rest/api (preserves context path)
   String get apiBaseUrl {
-    return '${sanitizedBaseUrl}/wiki/rest/api';
+    final uri = Uri.tryParse(sanitizedBaseUrl);
+    if (uri == null) return '$sanitizedBaseUrl/rest/api';
+
+    final segments = uri.pathSegments;
+    final hasWiki = segments.contains('wiki');
+    final isCloud = uri.host.endsWith('.atlassian.net');
+    final base = sanitizedBaseUrl;
+
+    if (isCloud) {
+      return hasWiki ? '$base/rest/api' : '$base/wiki/rest/api';
+    }
+    // Self-hosted/DC
+    return '$base/rest/api';
   }
 
   /// Creates a configuration with secure token storage
   /// 
   /// [enabled] - Whether Confluence integration is enabled
   /// [baseUrl] - The Confluence base URL (will be sanitized)
+  /// [email] - The email address for Confluence authentication
   /// [token] - The API token (will be stored securely)
   /// [lastValidated] - When the configuration was last validated
   /// [isValid] - Whether the configuration is valid
   static Future<ConfluenceConfig> createSecure({
     required bool enabled,
     required String baseUrl,
+    required String email,
     required String token,
     DateTime? lastValidated,
     bool isValid = false,
   }) async {
     // Sanitize inputs
     final sanitizedBaseUrl = InputSanitizer.sanitizeBaseUrl(baseUrl);
+    final sanitizedEmail = InputSanitizer.sanitizeEmail(email);
     final sanitizedToken = InputSanitizer.sanitizeApiToken(token);
     
     if (enabled && sanitizedBaseUrl.isEmpty) {
       throw ArgumentError('Invalid base URL provided');
+    }
+    
+    if (enabled && sanitizedEmail.isEmpty) {
+      throw ArgumentError('Invalid email provided');
     }
     
     if (enabled && sanitizedToken.isEmpty) {
@@ -130,6 +158,7 @@ class ConfluenceConfig {
     return ConfluenceConfig(
       enabled: enabled,
       baseUrl: sanitizedBaseUrl,
+      email: sanitizedEmail,
       token: tokenReference,
       lastValidated: lastValidated,
       isValid: isValid,
@@ -209,6 +238,7 @@ class ConfluenceConfig {
         other.enabled == enabled &&
         other.baseUrl == baseUrl &&
         other.token == token &&
+        other.email == email &&
         other.lastValidated == lastValidated &&
         other.isValid == isValid;
   }
@@ -219,6 +249,7 @@ class ConfluenceConfig {
       enabled,
       baseUrl,
       token,
+      email,
       lastValidated,
       isValid,
     );

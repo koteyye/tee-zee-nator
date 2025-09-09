@@ -3,7 +3,6 @@ import 'dart:developer' as developer;
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../exceptions/confluence_exceptions.dart';
-import '../models/confluence_config.dart';
 
 /// Centralized error handler service for Confluence operations
 class ConfluenceErrorHandler {

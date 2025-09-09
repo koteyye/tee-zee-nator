@@ -573,7 +573,7 @@ class FallbackProcessor implements ContentProcessor {
     recoveryAction += '• Проверьте настройки AI модели\n';
     recoveryAction += '• Попробуйте другую AI модель';
     
-    final technicalDetails = buffer.toString() + '\n\nResponse length: ${rawAiResponse.length} characters';
+    final technicalDetails = '$buffer\n\nResponse length: ${rawAiResponse.length} characters';
     
     return ContentExtractionException(
       'Критическая ошибка: не удалось извлечь контент ни одним из доступных методов',

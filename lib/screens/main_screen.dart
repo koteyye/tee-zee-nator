@@ -559,121 +559,125 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           });
         }
         
-        return Scaffold(
-          appBar: AppBar(
-            actions: [
-              EnhancedTooltip(
-                message: 'Manage specification templates',
-                keyboardShortcut: 'Ctrl+T',
-                child: TextButton.icon(
-                  icon: const Icon(Icons.description, size: 20),
-                  label: const Text('Шаблоны ТЗ'),
-                  onPressed: _openTemplateManagement,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.black87,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              EnhancedTooltip(
-                message: 'Open application settings',
-                keyboardShortcut: 'Ctrl+,',
-                child: TextButton.icon(
-                  icon: const Icon(Icons.settings, size: 20),
-                  label: const Text('Настройки'),
-                  onPressed: _openSettings,
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.black87,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              EnhancedTooltip(
-                message: 'Show keyboard shortcuts',
-                keyboardShortcut: 'F1',
-                child: IconButton(
-                  icon: const Icon(Icons.help_outline, size: 20),
-                  onPressed: _showKeyboardShortcuts,
-                  style: IconButton.styleFrom(
-                    foregroundColor: Colors.black87,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Настройки модели
-            const ModelSettingsCard(),
-            const SizedBox(height: 16),
-            
-            // User guidance (show for first-time users or when helpful)
-            if (_showGuidance && _generatedTz.isEmpty) ...[
-              Consumer<ConfigService>(
-                builder: (context, configService, child) {
-                  return ConfluenceGuidanceWidget(
-                    isConfluenceEnabled: configService.isConfluenceEnabled(),
-                    hasValidConnection: configService.getConfluenceConfig()?.isValid ?? false,
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
-
-              
-            // Основной контент
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Левая панель - ввод
-                  Expanded(
-                    flex: 1,
-                    child: InputPanel(
-                      rawRequirementsController: _rawRequirementsController,
-                      changesController: _changesController,
-                      generatedTz: _generatedTz,
-                      history: _history,
-                      isGenerating: _isGenerating,
-                      errorMessage: _errorMessage,
-                      onGenerate: _generateTZ,
-                      onClear: _clearAll,
-                      onHistoryItemTap: (historyItem) {
-                        setState(() {
-                          _generatedTz = historyItem.generatedTz;
-                          _originalContent = historyItem.generatedTz; // Также обновляем оригинальный контент
-                          _selectedFormat = historyItem.format; // Restore format context
-                        });
-                      },
+        return Consumer<LLMService>(
+          builder: (context, llmService, child) {
+            return Scaffold(
+              appBar: AppBar(
+                actions: [
+                  EnhancedTooltip(
+                    message: 'Manage specification templates',
+                    keyboardShortcut: 'Ctrl+T',
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.description, size: 20),
+                      label: const Text('Шаблоны ТЗ'),
+                      onPressed: _openTemplateManagement,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.black87,
+                      ),
                     ),
                   ),
-                  
-                  const SizedBox(width: 16),
-                  
-                  // Правая панель - результат
-                  Expanded(
-                    flex: 1,
-                    child: ResultPanel(
-                      generatedTz: _generatedTz,
-                      onSave: _saveFile,
+                  const SizedBox(width: 8),
+                  EnhancedTooltip(
+                    message: 'Open application settings',
+                    keyboardShortcut: 'Ctrl+,',
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.settings, size: 20),
+                      label: const Text('Настройки'),
+                      onPressed: _openSettings,
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.black87,
+                      ),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  EnhancedTooltip(
+                    message: 'Show keyboard shortcuts',
+                    keyboardShortcut: 'F1',
+                    child: IconButton(
+                      icon: const Icon(Icons.help_outline, size: 20),
+                      onPressed: _showKeyboardShortcuts,
+                      style: IconButton.styleFrom(
+                        foregroundColor: Colors.black87,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                 ],
               ),
+              body: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Настройки модели
+                const ModelSettingsCard(),
+                const SizedBox(height: 16),
+                
+                // User guidance (show for first-time users or when helpful)
+                if (_showGuidance && _generatedTz.isEmpty) ...[
+                  Consumer<ConfigService>(
+                    builder: (context, configService, child) {
+                      return ConfluenceGuidanceWidget(
+                        isConfluenceEnabled: configService.isConfluenceEnabled(),
+                        hasValidConnection: configService.getConfluenceConfig()?.isValid ?? false,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                  
+                // Основной контент
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Левая панель - ввод
+                      Expanded(
+                        flex: 1,
+                        child: InputPanel(
+                          rawRequirementsController: _rawRequirementsController,
+                          changesController: _changesController,
+                          generatedTz: _generatedTz,
+                          history: _history,
+                          isGenerating: _isGenerating,
+                          errorMessage: _errorMessage,
+                          onGenerate: _generateTZ,
+                          onClear: _clearAll,
+                          onHistoryItemTap: (historyItem) {
+                            setState(() {
+                              _generatedTz = historyItem.generatedTz;
+                              _originalContent = historyItem.generatedTz; // Также обновляем оригинальный контент
+                              _selectedFormat = historyItem.format; // Restore format context
+                            });
+                          },
+                        ),
+                      ),
+                      
+                      const SizedBox(width: 16),
+                      
+                      // Правая панель - результат
+                      Expanded(
+                        flex: 1,
+                        child: ResultPanel(
+                          generatedTz: _generatedTz,
+                          onSave: _saveFile,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                  
+                const SizedBox(height: 16),
+                
+                // Footer
+                const AppFooter(),
+              ],
             ),
-              
-            const SizedBox(height: 16),
-            
-            // Footer
-            const AppFooter(),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
+          }
+        );
           },
         ),
       ),

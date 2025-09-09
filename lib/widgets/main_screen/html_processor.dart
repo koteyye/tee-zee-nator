@@ -75,7 +75,7 @@ class HtmlProcessor implements ContentProcessor {
       
       // Добавляем стандартный заголовок, если его нет
       if (!htmlContent.toLowerCase().contains('техническое задание')) {
-        htmlContent = '<h1>Техническое задание</h1>\n\n' + htmlContent;
+        htmlContent = '<h1>Техническое задание</h1>\n\n$htmlContent';
       }
       
       // Validate and clean HTML content
@@ -208,7 +208,7 @@ class HtmlProcessor implements ContentProcessor {
         }
         
         // Wrap plain text in basic HTML structure
-        return '<h1>Техническое задание</h1>\n\n<p>' + text.replaceAll('\n\n', '</p>\n\n<p>') + '</p>';
+        return '<h1>Техническое задание</h1>\n\n<p>${text.replaceAll('\n\n', '</p>\n\n<p>')}</p>';
       }
     }
     

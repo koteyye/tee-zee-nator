@@ -136,6 +136,11 @@ class ConfluenceContentProcessor {
     
     // Extract Confluence links from sanitized text
     final links = extractLinks(sanitizedText, config.sanitizedBaseUrl);
+
+    ConfluenceErrorHandler.logInfo(
+      'extractLinks found ${links.length} link(s)',
+      context: 'ConfluenceContentProcessor._processTextInternal',
+    );
     
     if (links.isEmpty) {
       return sanitizedText;
@@ -188,13 +193,17 @@ class ConfluenceContentProcessor {
 
     final links = <String>[];
     
-    // Pattern to match Confluence URLs
-    // Matches: https://domain.atlassian.net/wiki/spaces/SPACE/pages/123456/Page+Title
+    // Pattern to match Confluence URLs for the configured host (supports self-hosted/DC and tiny links)
+    final host = Uri.tryParse(baseUrl)?.host ?? '';
+    if (host.isEmpty) {
+      return [];
+    }
+    final escapedHost = RegExp.escape(host);
     final confluenceUrlPattern = RegExp(
-      r'https?://[^\s/]+\.atlassian\.net/wiki/[^\s]*',
+      r'https?://' + escapedHost + r'/(?:wiki/)?(?:spaces|display|pages|x)/[^\s]+',
       caseSensitive: false,
     );
-    
+
     final matches = confluenceUrlPattern.allMatches(text);
     
     for (final match in matches) {
@@ -208,6 +217,10 @@ class ConfluenceContentProcessor {
       }
     }
     
+    ConfluenceErrorHandler.logInfo(
+      'extractLinks(host=$host) -> ${links.length} link(s): ${links.join(', ')}',
+      context: 'ConfluenceContentProcessor.extractLinks',
+    );
     return links;
   }
 
@@ -248,14 +261,46 @@ class ConfluenceContentProcessor {
 
   /// Processes a single Confluence link and retrieves its content
   Future<ConfluenceLink> _processLink(String linkUrl, ConfluenceConfig config) async {
+    ConfluenceErrorHandler.logInfo(
+      'Processing link: $linkUrl',
+      context: 'ConfluenceContentProcessor._processLink',
+    );
+
     // Check cache first
     final cachedLink = _linkCache[linkUrl];
     if (cachedLink != null && cachedLink.isFresh(ttl: CACHE_TTL)) {
+      ConfluenceErrorHandler.logInfo(
+        'Cache hit for link: $linkUrl',
+        context: 'ConfluenceContentProcessor._processLink',
+      );
       return cachedLink;
     }
 
-    // Extract page ID from URL
-    final pageId = ConfluenceLink.extractPageIdFromUrl(linkUrl);
+    // Extract or resolve page ID from URL (supports tiny links /x/KEY)
+    String? pageId = ConfluenceLink.extractPageIdFromUrl(linkUrl);
+    ConfluenceErrorHandler.logInfo(
+      'Direct pageId extraction: ${pageId ?? 'null'}',
+      context: 'ConfluenceContentProcessor._processLink',
+    );
+
+    if (pageId == null && linkUrl.contains('/x/')) {
+      try {
+        ConfluenceErrorHandler.logInfo(
+          'Attempting tiny-link resolve via service',
+          context: 'ConfluenceContentProcessor._processLink',
+        );
+        pageId = await _confluenceService.resolvePageIdFromUrl(linkUrl);
+        ConfluenceErrorHandler.logInfo(
+          'Tiny-link resolved pageId: ${pageId ?? 'null'}',
+          context: 'ConfluenceContentProcessor._processLink',
+        );
+      } catch (e) {
+        ConfluenceErrorHandler.logWarning(
+          'Tiny-link resolve failed: $e',
+          context: 'ConfluenceContentProcessor._processLink',
+        );
+      }
+    }
     if (pageId == null) {
       final failedLink = ConfluenceLink.failed(
         originalUrl: linkUrl,
@@ -270,6 +315,11 @@ class ConfluenceContentProcessor {
       // Retrieve page content from Confluence
       final content = await _confluenceService.getPageContent(pageId);
       final sanitizedContent = sanitizeContent(content);
+
+      ConfluenceErrorHandler.logInfo(
+        'Fetched content for pageId=$pageId, length=${sanitizedContent.length}',
+        context: 'ConfluenceContentProcessor._processLink',
+      );
       
       final successLink = ConfluenceLink.success(
         originalUrl: linkUrl,

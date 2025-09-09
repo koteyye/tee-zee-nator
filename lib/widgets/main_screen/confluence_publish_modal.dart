@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/publish_result.dart';
 import '../../models/output_format.dart';
@@ -333,7 +332,7 @@ class _ConfluencePublishModalState extends State<ConfluencePublishModal> {
           _publishResult = PublishResult.failure(
             operation: _selectedOperation,
             errorMessage: e is ConfluenceException 
-                ? '${(e as ConfluenceException).message} (${e.type})' 
+                ? '${(e).message} (${e.type})' 
                 : e.toString(),
           );
           _isPublishing = false;
