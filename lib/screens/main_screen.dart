@@ -6,12 +6,14 @@ import '../services/llm_service.dart';
 import '../services/template_service.dart';
 import '../services/file_service.dart';
 import '../services/confluence_session_manager.dart';
+import '../services/agent_controller.dart';
 import '../models/generation_history.dart';
 import '../models/output_format.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
 import '../widgets/main_screen/markdown_processor.dart';
 import '../widgets/main_screen/content_processor.dart';
 import '../widgets/main_screen/confluence_publish_modal.dart';
+import '../widgets/main_screen/agent_result_panel.dart';
 import '../widgets/common/user_guidance_widget.dart';
 import '../widgets/common/enhanced_tooltip.dart';
 import 'setup_screen.dart';
@@ -51,10 +53,9 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   final _rawRequirementsController = TextEditingController();
   final _changesController = TextEditingController();
   
-  String _generatedTz = '';
-  String _originalContent = ''; // Оригинальный контент для экспорта
+  // ЗАМЕНЯЕМ классические поля на агентские
+  late AgentController _agentController; // ОСНОВНОЙ контроллер
   final List<GenerationHistory> _history = [];
-  bool _isGenerating = false;
   String? _errorMessage;
   OutputFormat _selectedFormat = OutputFormat.markdown; // Default to Markdown
   final bool _showGuidance = true;
@@ -67,6 +68,12 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     
     _loadModels();
+    
+    // Инициализируем агентский контроллер после загрузки конфигурации
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final llmService = Provider.of<LLMService>(context, listen: false);
+      _agentController = AgentController(llmService: llmService);
+    });
     
     // Добавляем слушателей для обновления состояния кнопки
     _rawRequirementsController.addListener(() {
@@ -137,45 +144,12 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
   
-  /// Handles format selection changes and persists preference
-  Future<void> _onFormatChanged(OutputFormat format) async {
-    if (format == _selectedFormat) return;
-    
-    setState(() {
-      _selectedFormat = format;
-    });
-    
-    // Persist format preference to config
-    final configService = Provider.of<ConfigService>(context, listen: false);
-    try {
-      await configService.updatePreferredFormat(format);
-    } catch (e) {
-      print('Ошибка при сохранении предпочтения формата: $e');
-      // Show error to user but don't revert the UI change
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Не удалось сохранить предпочтение формата: $e'),
-          backgroundColor: Colors.orange.shade600,
-        ),
-      );
-    }
-  }
-  
-  /// Returns appropriate content processor for the given format
-  ContentProcessor _getProcessorForFormat(OutputFormat format) {
-    switch (format) {
-      case OutputFormat.markdown:
-        return MarkdownProcessor();
-      case OutputFormat.confluence:
-        return HtmlProcessor();
-    }
-  }
   
   Future<void> _generateTZ() async {
-    if (_rawRequirementsController.text.trim().isEmpty) return;
-    
+    final userRequest = _rawRequirementsController.text.trim();
+    if (userRequest.isEmpty) return;
+
     final configService = Provider.of<ConfigService>(context, listen: false);
-    final llmService = Provider.of<LLMService>(context, listen: false);
     
     // Проверяем наличие конфигурации
     if (configService.config == null) {
@@ -184,59 +158,53 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       });
       return;
     }
-    
+
     setState(() {
-      _isGenerating = true;
       _errorMessage = null;
     });
-    
+
     try {
-      // Получаем активный шаблон
-      final templateService = Provider.of<TemplateService>(context, listen: false);
-      final activeTemplate = await templateService.getActiveTemplate();
-      
-      // Generate content using selected format
-      final rawResponse = await llmService.generateTZ(
-        rawRequirements: _rawRequirementsController.text,
-        changes: _changesController.text.isNotEmpty ? _changesController.text : null,
-        templateContent: activeTemplate?.content,
-        format: _selectedFormat, // Pass selected format
+      // Используем агентский подход
+      await _agentController.handleAgentRequest(
+        rawRequirements: userRequest,
+        format: _selectedFormat,
+        changes: _changesController.text.trim().isNotEmpty
+            ? _changesController.text.trim()
+            : null,
       );
+
+      // Обновляем UI
+      setState(() {});
       
-      // Use appropriate processor based on selected format
-      final processor = _getProcessorForFormat(_selectedFormat);
-      final extractedContent = processor.extractContent(rawResponse);
-      
-      setState(() {
-        _originalContent = extractedContent; // Сохраняем оригинальный контент
-        _generatedTz = extractedContent; // Для отображения используем тот же контент
+      // Добавляем в историю если есть результат
+      if (_agentController.currentSpec.title.isNotEmpty) {
         _history.insert(0, GenerationHistory(
-          rawRequirements: _rawRequirementsController.text,
+          rawRequirements: userRequest,
           changes: _changesController.text.isNotEmpty ? _changesController.text : null,
-          generatedTz: extractedContent,
+          generatedTz: _agentController.formatSpecForOutput(),
           timestamp: DateTime.now(),
           model: configService.config!.defaultModel ?? 'unknown',
           format: _selectedFormat,
         ));
-      });
+      }
+      
+      // Очищаем поле изменений после генерации
+      _changesController.clear();
+      
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-      });
-    } finally {
-      setState(() {
-        _isGenerating = false;
-      });
+      _errorMessage = 'Ошибка при генерации ТЗ: $e';
+      print('Ошибка генерации: $e');
     }
   }
   
   Future<void> _saveFile() async {
-    if (_originalContent.isEmpty) return;
+    final content = _agentController.formatSpecForOutput();
+    if (content.isEmpty) return;
     
     try {
       // Use the enhanced file service with format-specific handling and validation
       final filePath = await FileService.saveFileWithFormat(
-        content: _originalContent,
+        content: content,
         format: _selectedFormat,
       );
       
@@ -276,16 +244,16 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     setState(() {
       _rawRequirementsController.clear();
       _changesController.clear();
-      _generatedTz = '';
-      _originalContent = '';
+      _agentController.resetSpecification();
       _history.clear();
       _errorMessage = null;
     });
   }
 
   void _copyToClipboard() {
-    if (_generatedTz.isNotEmpty) {
-      Clipboard.setData(ClipboardData(text: _generatedTz));
+    final content = _agentController.formatSpecForOutput();
+    if (content.isNotEmpty) {
+      Clipboard.setData(ClipboardData(text: content));
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('ТЗ скопировано в буфер обмена'),
@@ -297,10 +265,12 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   void _showConfluencePublishModal() {
+    final content = _agentController.formatSpecForOutput();
+    
     // Получаем заголовок из первой строки сгенерированного ТЗ, если он есть
     String? suggestedTitle;
-    if (_generatedTz.isNotEmpty) {
-      final firstLine = _generatedTz.split('\n').first.trim();
+    if (content.isNotEmpty) {
+      final firstLine = content.split('\n').first.trim();
       if (firstLine.startsWith('#')) {
         // Если первая строка - заголовок в формате Markdown, удаляем символы #
         suggestedTitle = firstLine.replaceAll(RegExp(r'^#+\s*'), '');
@@ -313,7 +283,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (context) => ConfluencePublishModal(
-        content: _generatedTz,
+        content: content,
         suggestedTitle: suggestedTitle,
       ),
     );
@@ -486,7 +456,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         actions: <Type, Action<Intent>>{
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (ActivateIntent intent) {
-              if (!_isGenerating && _rawRequirementsController.text.trim().isNotEmpty) {
+              if (!_agentController.isProcessing && _rawRequirementsController.text.trim().isNotEmpty) {
                 _generateTZ();
               }
               return null;
@@ -494,7 +464,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           ),
           SaveIntent: CallbackAction<SaveIntent>(
             onInvoke: (SaveIntent intent) {
-              if (_generatedTz.isNotEmpty) {
+              if (_agentController.formatSpecForOutput().isNotEmpty) {
                 _saveFile();
               }
               return null;
@@ -502,7 +472,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           ),
           CopyIntent: CallbackAction<CopyIntent>(
             onInvoke: (CopyIntent intent) {
-              if (_generatedTz.isNotEmpty) {
+              if (_agentController.formatSpecForOutput().isNotEmpty) {
                 _copyToClipboard();
               }
               return null;
@@ -511,7 +481,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           PublishIntent: CallbackAction<PublishIntent>(
             onInvoke: (PublishIntent intent) {
               final configService = Provider.of<ConfigService>(context, listen: false);
-              if (_generatedTz.isNotEmpty && 
+              if (_agentController.formatSpecForOutput().isNotEmpty &&
                   configService.isConfluenceEnabled()) {
                 _showConfluencePublishModal();
               }
@@ -614,7 +584,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 const SizedBox(height: 16),
                 
                 // User guidance (show for first-time users or when helpful)
-                if (_showGuidance && _generatedTz.isEmpty) ...[
+                if (_showGuidance && _agentController.formatSpecForOutput().isEmpty) ...[
                   Consumer<ConfigService>(
                     builder: (context, configService, child) {
                       return ConfluenceGuidanceWidget(
@@ -638,16 +608,15 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                         child: InputPanel(
                           rawRequirementsController: _rawRequirementsController,
                           changesController: _changesController,
-                          generatedTz: _generatedTz,
+                          generatedTz: _agentController.formatSpecForOutput(),
                           history: _history,
-                          isGenerating: _isGenerating,
+                          isGenerating: _agentController.isProcessing,
                           errorMessage: _errorMessage,
                           onGenerate: _generateTZ,
                           onClear: _clearAll,
                           onHistoryItemTap: (historyItem) {
                             setState(() {
-                              _generatedTz = historyItem.generatedTz;
-                              _originalContent = historyItem.generatedTz; // Также обновляем оригинальный контент
+                              // TODO: Можно добавить загрузку истории в агентский контроллер
                               _selectedFormat = historyItem.format; // Restore format context
                             });
                           },
@@ -660,7 +629,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                       Expanded(
                         flex: 1,
                         child: ResultPanel(
-                          generatedTz: _generatedTz,
+                          generatedTz: _agentController.formatSpecForOutput(),
                           onSave: _saveFile,
                         ),
                       ),
