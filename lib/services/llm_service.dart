@@ -292,8 +292,8 @@ $templateHint
 @@@END@@@''';
     }
     
-    // Validate template content for Markdown compatibility
-    if (templateContent.contains('<') && templateContent.contains('>')) {
+    // Validate template content for Markdown compatibility (stricter real HTML detection)
+    if (_hasRealHtmlTag(templateContent)) {
       throw ArgumentError('Template content contains HTML tags which are not compatible with Markdown format');
     }
     
@@ -334,9 +334,8 @@ $templateContent
 Ответ = ТОЛЬКО HTML без объяснений.''';
     }
     
-    // Validate template content for HTML compatibility
-    if (!templateContent.contains('<') || !templateContent.contains('>')) {
-      // Template might be in Markdown format, warn but continue
+    // Validate template content for HTML compatibility (warn only if no real HTML tags)
+    if (!_hasRealHtmlTag(templateContent)) {
       debugPrint('Warning: Template content appears to be in Markdown format but Confluence HTML format was requested');
     }
     
@@ -434,14 +433,6 @@ $templateContent
     }
     
     // Increased limit to account for processed Confluence content
-    if (rawRequirements.length > 15000) {
-      throw LLMResponseValidationException(
-        'Требования слишком длинные и могут превысить лимиты AI модели',
-        '',
-        recoveryAction: 'Сократите описание требований или количество ссылок на Confluence',
-        technicalDetails: 'Requirements too long: ${rawRequirements.length} characters (including processed Confluence content)',
-      );
-    }
     
     // Validate Confluence content markers are properly processed
     if (rawRequirements.contains('@conf-cnt') && rawRequirements.contains('@')) {
@@ -467,17 +458,9 @@ $templateContent
     
     // Validate template content if provided
     if (templateContent != null && templateContent.isNotEmpty) {
-      if (templateContent.length > 5000) {
-        throw LLMResponseValidationException(
-          'Шаблон слишком длинный и может превысить лимиты AI модели',
-          '',
-          recoveryAction: 'Сократите шаблон до 5000 символов',
-          technicalDetails: 'Template too long: ${templateContent.length} characters',
-        );
-      }
       
       // Format-specific template validation
-      if (format == OutputFormat.markdown && templateContent.contains('<') && templateContent.contains('>')) {
+      if (format == OutputFormat.markdown && _hasRealHtmlTag(templateContent)) {
         throw LLMResponseValidationException(
           'Шаблон содержит HTML теги, но выбран формат Markdown',
           '',
@@ -486,6 +469,26 @@ $templateContent
         );
       }
     }
+  }
+
+  // Detects presence of real (non-placeholder) HTML tags
+  bool _hasRealHtmlTag(String text) {
+    if (text.isEmpty) return false;
+    // Quick reject for common placeholder patterns like <<NAME>> or {{var}} or [[ref]]
+    // We'll search for tags that look like <tag ...> or </tag>
+    final tagPattern = RegExp(r'<\/?([a-zA-Z][a-zA-Z0-9:-]*)[^>]*>', multiLine: true);
+    const allowedInline = {'code','pre','em','strong','a','img','br','hr'};
+    for (final match in tagPattern.allMatches(text)) {
+      final tag = match.group(1) ?? '';
+      if (tag.isEmpty) continue;
+      final lower = tag.toLowerCase();
+      // Ignore obviously non-html placeholders (all uppercase and no attributes)
+      if (tag.toUpperCase() == tag && !match.group(0)!.contains(' ')) continue;
+      if (!allowedInline.contains(lower)) {
+        return true;
+      }
+    }
+    return false;
   }
   
   /// Validates LLM response based on format
@@ -578,16 +581,32 @@ $templateContent
       );
     }
     
-    // Check for HTML tags in Markdown response
+    // Check for (disallowed) HTML tags in Markdown response.
+    // Разрешаем небольшой набор безопасных тегов, которые можно автоматически интерпретировать как Markdown.
     if (content.contains('<') && content.contains('>')) {
-      final htmlTagPattern = RegExp(r'<(?!/?(?:code|pre|em|strong|a|img|br|hr)\b)[^>]+>', caseSensitive: false);
-      if (htmlTagPattern.hasMatch(content)) {
+      // Central whitelist (lowercase) of tags we ignore in validation.
+      const allowedTags = [
+        'code','pre','em','strong','a','img','br','hr',
+        'b','i','u','p','h1','h2','h3','h4','h5','h6',
+        'ul','ol','li','table','thead','tbody','tr','th','td','blockquote'
+      ];
+      // Regex captures tag name.
+      final tagPattern = RegExp(r'<\/?([a-zA-Z][a-zA-Z0-9:-]*)[^>]*>', caseSensitive: false);
+      bool hasDisallowed = false;
+      for (final m in tagPattern.allMatches(content)) {
+        final tagName = (m.group(1) ?? '').toLowerCase();
+        if (!allowedTags.contains(tagName)) {
+          hasDisallowed = true;
+          break;
+        }
+      }
+      if (hasDisallowed) {
         throw ContentFormatException(
           'AI вернул HTML теги в ответе для формата Markdown',
           'Markdown',
           'HTML',
           recoveryAction: 'Попробуйте повторить генерацию или выберите формат Confluence',
-          technicalDetails: 'HTML tags found in Markdown response',
+          technicalDetails: 'Disallowed HTML tags found in Markdown response',
         );
       }
     }
@@ -672,12 +691,6 @@ $templateContent
       }
       
       // Validate content length to prevent token limit issues
-      if (content.length > 5000) {
-        debugPrint('Warning: Confluence content too long (${content.length} chars), truncating');
-        final truncatedContent = '${content.substring(0, 4900)}...\n[Содержимое обрезано из-за ограничений размера]';
-        processedText = processedText.replaceRange(match.start, match.end, truncatedContent);
-        continue;
-      }
       
       // Replace marker with processed content
       final processedContent = sanitizeConfluenceContent(content);

@@ -119,14 +119,18 @@ class ConfluenceSessionManager {
     int totalCached = 0;
     int totalMemoryUsage = 0;
     int totalSessionContent = 0;
-    
+
     for (final processor in _processors) {
-      final stats = processor.getCacheStats();
-      totalCached += stats['totalCached'] as int;
-      totalMemoryUsage += stats['memoryUsageBytes'] as int;
-      totalSessionContent += stats['sessionContentCount'] as int;
+      try {
+        final stats = processor.getCacheStats();
+        totalCached += (stats['totalCached'] is int) ? stats['totalCached'] as int : 0;
+        totalMemoryUsage += (stats['memoryUsageBytes'] is int) ? stats['memoryUsageBytes'] as int : 0;
+        totalSessionContent += (stats['sessionContentCount'] is int) ? stats['sessionContentCount'] as int : 0;
+      } catch (_) {
+        // Ignore individual processor stat errors to keep aggregate stable
+      }
     }
-    
+
     return {
       'processorsCount': _processors.length,
       'totalCachedLinks': totalCached,

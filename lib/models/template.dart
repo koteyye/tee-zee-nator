@@ -3,6 +3,18 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'template.g.dart';
 
+/// (Deprecated) Enum for template format – retained only for backward compatibility.
+/// Все шаблоны теперь считаются Markdown. Значение игнорируется.
+@HiveType(typeId: 13)
+enum TemplateFormat {
+  @HiveField(0)
+  @JsonValue('markdown')
+  markdown,
+  @HiveField(1)
+  @JsonValue('confluence')
+  confluence,
+}
+
 @HiveType(typeId: 3)
 @JsonSerializable()
 class Template {
@@ -24,6 +36,10 @@ class Template {
   @HiveField(5)
   final DateTime? updatedAt;
   
+  @HiveField(6)
+  @JsonKey(name: 'format')
+  final TemplateFormat format; // Deprecated: always treated as markdown
+  
   Template({
     required this.id,
     required this.name,
@@ -31,6 +47,7 @@ class Template {
     this.isDefault = false,
     required this.createdAt,
     this.updatedAt,
+  required this.format,
   });
   
   factory Template.fromJson(Map<String, dynamic> json) => _$TemplateFromJson(json);
@@ -43,6 +60,7 @@ class Template {
     bool? isDefault,
     DateTime? createdAt,
     DateTime? updatedAt,
+  TemplateFormat? format,
   }) {
     return Template(
       id: id ?? this.id,
@@ -51,6 +69,7 @@ class Template {
       isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+  format: format ?? this.format,
     );
   }
   
@@ -64,8 +83,9 @@ class Template {
   @override
   int get hashCode => id.hashCode;
   
+  
   @override
   String toString() {
-    return 'Template{id: $id, name: $name, isDefault: $isDefault}';
+  return 'Template{id: $id, name: $name, isDefault: $isDefault}';
   }
 }

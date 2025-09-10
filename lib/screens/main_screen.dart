@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../models/output_format.dart';
 import '../services/config_service.dart';
 import '../services/llm_service.dart';
 import '../services/streaming_llm_service.dart';
@@ -10,7 +11,6 @@ import '../services/template_service.dart';
 import '../services/file_service.dart';
 import '../services/confluence_session_manager.dart';
 import '../models/generation_history.dart';
-import '../models/output_format.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
 import '../widgets/main_screen/confluence_publish_modal.dart';
 import '../widgets/common/user_guidance_widget.dart';
@@ -126,7 +126,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     if (configService.config != null) {
       // Load format preference from config
       setState(() {
-        _selectedFormat = configService.config!.preferredFormat;
+        _selectedFormat = configService.config!.outputFormat;
       });
       
       // Инициализируем провайдера
@@ -161,7 +161,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       setState(() { _errorMessage = 'Конфигурация не найдена. Перейдите в настройки.'; });
       return;
     }
-    final activeTemplate = await templateService.getActiveTemplate();
+    final activeTemplate = await templateService.getActiveTemplate(configService.config!.outputFormat);
     _streamService ??= StreamingLLMService(
       llmService: Provider.of<LLMService>(context, listen: false),
     );
@@ -509,10 +509,10 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         }
         
         // Обновляем выбранный формат из конфигурации
-        if (_selectedFormat != configService.config!.preferredFormat) {
+        if (_selectedFormat != configService.config!.outputFormat) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             setState(() {
-              _selectedFormat = configService.config!.preferredFormat;
+              _selectedFormat = configService.config!.outputFormat;
             });
           });
         }

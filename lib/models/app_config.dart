@@ -36,7 +36,7 @@ class AppConfig {
   final String? llmopsAuthHeader; // Authorization header для LLMOps
   
   @HiveField(9)
-  final OutputFormat preferredFormat; // Предпочитаемый формат вывода
+  final OutputFormat outputFormat; // Предпочитаемый формат вывода
   
   @HiveField(10)
   @JsonKey(toJson: _confluenceConfigToJson, fromJson: _confluenceConfigFromJson)
@@ -58,11 +58,16 @@ class AppConfig {
     this.llmopsBaseUrl,
     this.llmopsModel,
     this.llmopsAuthHeader,
-    this.preferredFormat = OutputFormat.markdown, // По умолчанию Markdown
+    OutputFormat? outputFormat, // Новый параметр (может быть null если используется legacy preferredFormat)
+    OutputFormat? preferredFormat, // Legacy алиас для совместимости с тестами
     this.confluenceConfig,
     this.cerebrasToken,
     this.groqToken,
-  });
+  }) : outputFormat = outputFormat ?? preferredFormat ?? OutputFormat.markdown; // Приоритет: новый параметр, затем legacy, затем значение по умолчанию
+
+  // Legacy геттер для обратной совместимости с существующими тестами/кодом
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  OutputFormat get preferredFormat => outputFormat;
   
   factory AppConfig.fromJson(Map<String, dynamic> json) => _$AppConfigFromJson(json);
   Map<String, dynamic> toJson() => _$AppConfigToJson(this);
@@ -79,7 +84,7 @@ class AppConfig {
       llmopsBaseUrl: map[6] as String?,
       llmopsModel: map[7] as String?,
       llmopsAuthHeader: map[8] as String?,
-      preferredFormat: map[9] as OutputFormat? ?? OutputFormat.markdown, // По умолчанию Markdown для старых конфигураций
+      outputFormat: map[9] as OutputFormat? ?? OutputFormat.markdown, // По умолчанию Markdown для старых конфигураций
       confluenceConfig: map[10] as ConfluenceConfig?, // Confluence конфигурация для новых пользователей, null для существующих
       cerebrasToken: map[11] as String?, // Cerebras AI токен
       groqToken: map[12] as String?, // Groq токен
@@ -97,7 +102,7 @@ class AppConfig {
     String? llmopsBaseUrl,
     String? llmopsModel,
     String? llmopsAuthHeader,
-    OutputFormat? preferredFormat,
+    OutputFormat? outputFormat,
     Object? confluenceConfig = _sentinel,
     String? cerebrasToken,
     String? groqToken,
@@ -112,7 +117,7 @@ class AppConfig {
       llmopsBaseUrl: llmopsBaseUrl ?? this.llmopsBaseUrl,
       llmopsModel: llmopsModel ?? this.llmopsModel,
       llmopsAuthHeader: llmopsAuthHeader ?? this.llmopsAuthHeader,
-      preferredFormat: preferredFormat ?? this.preferredFormat,
+      outputFormat: outputFormat ?? this.outputFormat,
       confluenceConfig: confluenceConfig == _sentinel 
           ? this.confluenceConfig 
           : confluenceConfig as ConfluenceConfig?,

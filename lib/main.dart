@@ -26,6 +26,7 @@ void main() async {
   Hive.registerAdapter(TemplateAdapter()); // typeId = 3
   Hive.registerAdapter(OutputFormatAdapter()); // typeId = 11
   Hive.registerAdapter(ConfluenceConfigAdapter()); // typeId = 12
+  Hive.registerAdapter(TemplateFormatAdapter()); // typeId = 13
   
   // Предварительно открываем и инициализируем конфиг (ранняя загрузка перед UI)
   final preConfigService = ConfigService();

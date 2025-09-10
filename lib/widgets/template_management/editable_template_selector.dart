@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/output_format.dart';
 import '../../models/template.dart';
 import '../../services/template_service.dart';
 
 class EditableTemplateSelector extends StatefulWidget {
   final Template? selectedTemplate;
   final ValueChanged<Template?> onTemplateSelected;
+  final OutputFormat? currentFormat;
 
   const EditableTemplateSelector({
     super.key,
     required this.selectedTemplate,
     required this.onTemplateSelected,
+    this.currentFormat,
   });
 
   @override
@@ -31,7 +34,12 @@ class _EditableTemplateSelectorState extends State<EditableTemplateSelector> {
     final templateService = Provider.of<TemplateService>(context, listen: false);
     
     try {
-      final templates = await templateService.getAllTemplates();
+      List<Template> templates;
+      if (widget.currentFormat != null) {
+        templates = await templateService.getTemplatesForFormat(widget.currentFormat!);
+      } else {
+        templates = await templateService.getAllTemplates();
+      }
       if (mounted) {
         setState(() {
           _templates = templates;

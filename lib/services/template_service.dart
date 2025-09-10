@@ -5,30 +5,36 @@ import 'package:hive/hive.dart';
 import 'package:provider/provider.dart';
 import '../models/template.dart';
 import '../models/app_config.dart';
+import '../models/output_format.dart';
 import 'llm_service.dart';
 
 class TemplateService extends ChangeNotifier {
   late Box<Template> _templatesBox;
   late Box<String> _settingsBox;
   bool _initialized = false;
-  Template? _cachedActiveTemplate;
-  
-  static const String _defaultTemplateKey = 'default';
-  static const String _activeTemplateKey = 'active_template_id';
-  
+
+  // Unified keys (legacy keys will be migrated)
+  static const String _defaultKey = 'default_markdown';
+  static const String _activeKey = 'active_template';
+
+  // Legacy keys kept for migration only
+  static const String _legacyDefaultConfluenceKey = 'default_confluence';
+  static const String _legacyActiveMarkdownKey = 'active_template_markdown';
+  static const String _legacyActiveConfluenceKey = 'active_template_confluence';
+
   bool get isInitialized => _initialized;
-  Template? get cachedActiveTemplate => _cachedActiveTemplate;
   
   Future<void> init() async {
     try {
       _templatesBox = await Hive.openBox<Template>('templates');
       _settingsBox = await Hive.openBox<String>('template_settings');
       
-      // Создаем дефолтный шаблон при первом запуске
-      await _ensureDefaultTemplate();
-      
-      // Кешируем активный шаблон
-      await _updateCachedActiveTemplate();
+  // Ensure unified default template exists
+  await _ensureUnifiedDefaultTemplate();
+
+  // Migrate legacy templates/keys (format split) -> unified
+  await _migrateLegacyTemplates();
+  await _migrateLegacyKeys();
       
       _initialized = true;
       notifyListeners();
@@ -39,44 +45,26 @@ class TemplateService extends ChangeNotifier {
     }
   }
   
-  Future<void> _updateCachedActiveTemplate() async {
-    try {
-      final activeId = _settingsBox.get(_activeTemplateKey);
-      if (activeId != null) {
-        _cachedActiveTemplate = _templatesBox.get(activeId);
-      }
-      
-      _cachedActiveTemplate ??= _templatesBox.get(_defaultTemplateKey);
-    } catch (e) {
-      log('Error updating cached active template: $e');
-      _cachedActiveTemplate = null;
-    }
-  }
   
-  Future<void> _ensureDefaultTemplate() async {
-    if (!_templatesBox.containsKey(_defaultTemplateKey)) {
+  Future<void> _ensureUnifiedDefaultTemplate() async {
+    if (!_templatesBox.containsKey(_defaultKey)) {
       try {
-        // Загружаем дефолтный шаблон из assets
         final defaultContent = await rootBundle.loadString('tz_pattern.md');
-        
         final defaultTemplate = Template(
-          id: _defaultTemplateKey,
+          id: _defaultKey,
           name: 'Шаблон по умолчанию',
           content: defaultContent,
           isDefault: true,
           createdAt: DateTime.now(),
+          format: TemplateFormat.markdown,
         );
-        
-        await _templatesBox.put(_defaultTemplateKey, defaultTemplate);
-        
-        // Устанавливаем как активный, если нет активного шаблона
-        if (!_settingsBox.containsKey(_activeTemplateKey)) {
-          await _settingsBox.put(_activeTemplateKey, _defaultTemplateKey);
+        await _templatesBox.put(_defaultKey, defaultTemplate);
+        if (!_settingsBox.containsKey(_activeKey)) {
+          await _settingsBox.put(_activeKey, _defaultKey);
         }
-        
-        log('Default template created and set as active');
+        log('Unified default template created');
       } catch (e) {
-        log('Error creating default template: $e');
+        log('Error creating unified default template: $e');
         rethrow;
       }
     }
@@ -106,26 +94,22 @@ class TemplateService extends ChangeNotifier {
     return _templatesBox.get(id);
   }
   
-  Future<Template?> getActiveTemplate() async {
+  Future<Template?> getActiveTemplate(OutputFormat format) async { // format ignored (kept for compatibility)
     try {
       if (!_initialized) await init();
-      
-      final activeId = _settingsBox.get(_activeTemplateKey);
-      if (activeId != null) {
-        return _templatesBox.get(activeId);
-      }
-      
-      // Если активный шаблон не найден, возвращаем дефолтный
-      return _templatesBox.get(_defaultTemplateKey);
+      final activeId = _settingsBox.get(_activeKey) ?? _defaultKey;
+      return _templatesBox.get(activeId) ?? _templatesBox.get(_defaultKey);
     } catch (e) {
       log('Error getting active template: $e');
       return null;
     }
   }
   
-  Future<String?> getActiveTemplateId() async {
+  Template? get cachedActiveTemplate => null; // Заглушка для совместимости, но лучше использовать getActiveTemplate с форматом
+  
+  Future<String?> getActiveTemplateId(OutputFormat format) async { // format ignored
     if (!_initialized) await init();
-    return _settingsBox.get(_activeTemplateKey);
+    return _settingsBox.get(_activeKey) ?? _defaultKey;
   }
   
   Future<void> saveTemplate(Template template) async {
@@ -136,11 +120,6 @@ class TemplateService extends ChangeNotifier {
     );
     
     await _templatesBox.put(template.id, updatedTemplate);
-    
-    // Если сохраняемый шаблон является активным, обновляем кеш
-    if (_cachedActiveTemplate?.id == template.id) {
-      _cachedActiveTemplate = updatedTemplate;
-    }
     
     notifyListeners();
     log('Template saved: ${template.name}');
@@ -160,9 +139,8 @@ class TemplateService extends ChangeNotifier {
     }
     
     // Если удаляемый шаблон активный, переключаемся на дефолтный
-    final activeId = _settingsBox.get(_activeTemplateKey);
-    if (activeId == id) {
-      await setActiveTemplate(_defaultTemplateKey);
+    if (_settingsBox.get(_activeKey) == id) {
+      await _settingsBox.put(_activeKey, _defaultKey);
     }
     
     await _templatesBox.delete(id);
@@ -170,18 +148,15 @@ class TemplateService extends ChangeNotifier {
     log('Template deleted: ${template.name}');
   }
   
-  Future<void> setActiveTemplate(String id) async {
+  Future<void> setActiveTemplate(String id, OutputFormat format) async { // format ignored
     if (!_initialized) await init();
-    
     final template = _templatesBox.get(id);
     if (template == null) {
       throw ArgumentError('Template with id $id not found');
     }
-    
-    await _settingsBox.put(_activeTemplateKey, id);
-    _cachedActiveTemplate = template;
+    await _settingsBox.put(_activeKey, id);
     notifyListeners();
-    log('Active template set to: ${template.name}');
+    log('Active template set: ${template.name}');
   }
   
   Future<String> reviewTemplate(String content, AppConfig config, BuildContext context) async {
@@ -191,6 +166,7 @@ class TemplateService extends ChangeNotifier {
       throw ArgumentError('Review model not configured');
     }
     
+    // ignore: use_build_context_synchronously
     final llmService = Provider.of<LLMService>(context, listen: false);
     return await llmService.reviewTemplate(content, config.reviewModel);
   }
@@ -210,6 +186,7 @@ class TemplateService extends ChangeNotifier {
       content: sourceTemplate.content,
       isDefault: false,
       createdAt: DateTime.now(),
+      format: sourceTemplate.format,
     );
     
     await saveTemplate(duplicatedTemplate);
@@ -228,5 +205,69 @@ class TemplateService extends ChangeNotifier {
     
     // Можно добавить дополнительные проверки
     return true;
+  }
+  
+  Future<void> _migrateLegacyTemplates() async {
+    for (String key in List.from(_templatesBox.keys)) {
+      try {
+        final t = _templatesBox.get(key);
+        // ignore: unnecessary_null_comparison
+        if (t != null && t.format == null) { // Legacy without format
+          final migrated = t.copyWith(format: TemplateFormat.markdown);
+          await _templatesBox.put(key, migrated);
+          log('Migrated legacy template $key to markdown');
+        } else if (t != null && t.format == TemplateFormat.confluence) {
+          // Normalize all to markdown
+            final migrated = t.copyWith(format: TemplateFormat.markdown);
+            await _templatesBox.put(key, migrated);
+            log('Normalized template $key (confluence->markdown)');
+        }
+      } catch (e) {
+        log('Error migrating template $key: $e');
+      }
+    }
+  }
+  
+  Future<void> _migrateLegacyKeys() async {
+    try {
+      // If unified active key already exists, nothing to do
+      if (_settingsBox.containsKey(_activeKey)) return;
+
+      // Prefer previously selected Markdown active template, else Confluence
+      final legacyMarkdown = _settingsBox.get(_legacyActiveMarkdownKey);
+      final legacyConfluence = _settingsBox.get(_legacyActiveConfluenceKey);
+      final chosen = legacyMarkdown ?? legacyConfluence ?? _defaultKey;
+      await _settingsBox.put(_activeKey, chosen);
+
+      // Ensure default template flag is only on unified default
+      final legacyDefaultConfluence = _templatesBox.get(_legacyDefaultConfluenceKey);
+      if (legacyDefaultConfluence != null && legacyDefaultConfluence.isDefault) {
+        final updated = legacyDefaultConfluence.copyWith(isDefault: false);
+        await _templatesBox.put(_legacyDefaultConfluenceKey, updated);
+      }
+
+      log('Migrated legacy active template keys to unified key ($_activeKey -> $chosen)');
+    } catch (e) {
+      log('Error migrating legacy template keys: $e');
+    }
+  }
+  
+  Future<List<Template>> getTemplatesForFormat(OutputFormat format) async { // format ignored
+    if (!_initialized) await init();
+    return getAllTemplates();
+  }
+
+  Future<Template> createNewTemplate(OutputFormat format, {String name = 'Новый шаблон'}) async { // format ignored
+    final newId = generateNewTemplateId();
+    final newTemplate = Template(
+      id: newId,
+      name: name,
+      content: '',
+      isDefault: false,
+      createdAt: DateTime.now(),
+      format: TemplateFormat.markdown,
+    );
+    await saveTemplate(newTemplate);
+    return newTemplate;
   }
 }

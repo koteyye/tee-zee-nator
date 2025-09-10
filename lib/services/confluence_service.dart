@@ -64,16 +64,15 @@ class ConfluenceService extends ChangeNotifier {
   /// - API accessibility
   ///
   /// Returns true if connection is successful, false otherwise
-  /// Supports both legacy 3-arg (baseUrl, email, token) and simplified 2-arg (baseUrl, token) usages.
-  /// When called with 2 args, the stored configuration email is used.
-  Future<bool> testConnection(String baseUrl, String emailOrToken, [String? token]) async {
-    final usingTwoArgs = token == null;
-    final email = usingTwoArgs ? (_config?.email ?? '') : emailOrToken;
-    final actualToken = usingTwoArgs ? emailOrToken : token;
+  /// Legacy signature kept (baseUrl, email, token) because tests/mocks expect 3 required args.
+  /// Internal convenience: call testConnectionWithStoredEmail for 2-arg usage.
+  Future<bool> testConnection(String baseUrl, String email, String token) async {
+    final actualEmail = email.isEmpty ? (_config?.email ?? '') : email;
+    final actualToken = token;
 
     // Sanitize inputs first
-    final sanitizedUrl = InputSanitizer.sanitizeBaseUrl(baseUrl);
-    final sanitizedEmail = InputSanitizer.sanitizeEmail(email);
+  final sanitizedUrl = InputSanitizer.sanitizeBaseUrl(baseUrl);
+  final sanitizedEmail = InputSanitizer.sanitizeEmail(actualEmail);
   final sanitizedToken = InputSanitizer.sanitizeApiToken(actualToken);
 
     if (sanitizedUrl.isEmpty || sanitizedEmail.isEmpty || sanitizedToken.isEmpty) {
@@ -117,7 +116,7 @@ class ConfluenceService extends ChangeNotifier {
       _httpClient ??= http.Client();
       
       // Prepare request with authentication using email:token format
-      final authToken = '$sanitizedEmail:$sanitizedToken';
+  final authToken = '$sanitizedEmail:$sanitizedToken';
       final request = http.Request('GET', Uri.parse(healthCheckUrl));
       request.headers.addAll(_buildHeaders(authToken));
       
@@ -151,6 +150,11 @@ class ConfluenceService extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  /// Convenience helper for code paths that only provide baseUrl + token (email comes from config)
+  Future<bool> testConnectionWithStoredEmail(String baseUrl, String token) async {
+    return testConnection(baseUrl, _config?.email ?? '', token);
   }
 
 

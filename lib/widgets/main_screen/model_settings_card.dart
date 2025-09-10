@@ -149,15 +149,20 @@ class ModelSettingsCard extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minHeight: 48),
             child: templateService.isInitialized
-                ? IsolatedTemplateSelector(
-                    onTemplateSelected: (template) async {
-                      if (template != null) {
-                        try {
-                          await templateService.setActiveTemplate(template.id);
-                        } catch (e) {
-                          print('Error setting active template: $e');
-                        }
-                      }
+                ? Consumer<ConfigService>(
+                    builder: (context, configService, child) {
+                      final config = configService.config;
+                      return IsolatedTemplateSelector(
+                        onTemplateSelected: (template) async {
+                          if (template != null) {
+                            try {
+                              await templateService.setActiveTemplate(template.id, config!.outputFormat);
+                            } catch (e) {
+                              print('Error setting active template: $e');
+                            }
+                          }
+                        },
+                      );
                     },
                   )
                 : Container(
