@@ -1,14 +1,13 @@
 import 'package:flutter/foundation.dart';
-import 'dart:convert';
 import '../models/app_config.dart';
 import '../models/output_format.dart';
-import '../models/agent_response.dart';
 import '../exceptions/content_processing_exceptions.dart';
 import 'llm_provider.dart';
 import 'openai_provider.dart';
 import 'llmops_provider.dart';
 import 'cerebras_provider.dart';
 import 'groq_provider.dart';
+// import 'llm_streaming_provider.dart'; // kept for future conditional logic (currently unused explicitly)
 
 class LLMService extends ChangeNotifier {
   LLMProvider? _provider;
@@ -53,6 +52,99 @@ class LLMService extends ChangeNotifier {
     }
     
     notifyListeners();
+  }
+
+  /// Public helper to build prompts (system + user) for streaming generation
+  /// without performing the actual provider request. Reuses validation logic.
+  /// Returns a map { 'system': ..., 'user': ... }.
+  Map<String, String> buildGenerationPrompts({
+    required String rawRequirements,
+    String? changes,
+    String? templateContent,
+    OutputFormat format = OutputFormat.markdown,
+  bool forStreaming = false,
+  }) {
+    _validateServiceState();
+
+    final processedRawRequirements = processConfluenceContent(rawRequirements);
+    final processedChanges = changes != null ? processConfluenceContent(changes) : null;
+    validateGenerationParameters(processedRawRequirements, format, templateContent);
+
+    if (forStreaming) {
+      final streamingSystem = _buildStreamingSystemPrompt(
+        templateContent: templateContent,
+        format: format,
+      );
+      final streamingUser = _buildStreamingUserPrompt(
+        requirements: processedRawRequirements,
+        changes: processedChanges,
+        format: format,
+      );
+      return {'system': streamingSystem, 'user': streamingUser};
+    } else {
+      // Build system prompt (legacy non-stream markers)
+      late final String systemPrompt;
+      switch (format) {
+        case OutputFormat.markdown:
+          systemPrompt = _buildMarkdownSystemPrompt(templateContent);
+          break;
+        case OutputFormat.confluence:
+          systemPrompt = _buildConfluenceSystemPrompt(templateContent);
+          break;
+      }
+      final userPrompt = _buildUserPrompt(processedRawRequirements, processedChanges, format);
+      return {'system': systemPrompt, 'user': userPrompt};
+    }
+  }
+
+  /// Streaming system prompt (NDJSON spec, no @@@ markers)
+  String _buildStreamingSystemPrompt({
+    required String? templateContent,
+    required OutputFormat format,
+  }) {
+    final formatLabel = format == OutputFormat.markdown ? 'Markdown' : 'HTML (Confluence)';
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final templateHint = (templateContent == null || templateContent.trim().isEmpty)
+        ? '(нет активного шаблона — структура на усмотрение модели)'
+        : templateContent.trim();
+    return '''Ты ИИ-помощник по созданию технического задания. Отвечай СТРОГО стримом NDJSON. Каждая строка — одиночный валидный JSON без текста вне JSON.
+
+ФАЗЫ: init → plan → structure → draft_sections → refine → validate → finalize.
+
+ФОРМАТ ВЫВОДА: $formatLabel (структура и заголовки внутри текста чанков).
+
+ПРАВИЛА СТРИМА:
+1. Первая строка: {"stream_type":"status","phase":"init","progress":0,"message":"Инициализация","ts":"<ISO8601>"}
+2. Вторая строка: пустой контент: {"stream_type":"content","append":""}
+3. Используй преимущественно append с небольшими логическими фрагментами. При крупной переработке допускается full.
+4. НИКОГДА не используй ключи разделов — только текст.
+5. Прогресс растёт монотонно. Финальная строка: {"stream_type":"final","progress":100,"message":"Готово","summary":"..."}
+6. Без плейсхолдеров и заглушек.
+7. Только один JSON на строку.
+
+КОНТУР ШАБЛОНА (ориентир):
+$templateHint
+
+ЗАДАЧА: Постепенно сгенерировать цельное, отредактированное ТЗ высокого качества. Время запроса: $nowIso.''';
+  }
+
+  /// Streaming user prompt (no legacy markers)
+  String _buildStreamingUserPrompt({
+    required String requirements,
+    required String? changes,
+    required OutputFormat format,
+  }) {
+    final formatInstr = format == OutputFormat.markdown
+        ? 'Форматируй в Markdown без HTML.'
+        : 'Форматируй в допустимом Confluence Storage HTML.';
+    final b = StringBuffer()
+      ..writeln('Требования для ТЗ:\n\n$requirements');
+    if (changes != null && changes.isNotEmpty) {
+      b..writeln('\nИзменения / уточнения:\n\n$changes');
+    }
+    b..writeln('\n$formatInstr')
+     ..writeln('Начинай поток немедленно, соблюдая протокол фаз.');
+    return b.toString();
   }
   
   /// Тестирует соединение с провайдером
@@ -155,42 +247,6 @@ class LLMService extends ChangeNotifier {
     return result;
   }
   
-  /// Генерирует техническое задание с использованием агентского подхода
-  /// ЗАМЕНЯЕТ существующий метод generateTZ()
-  Future<AgentResponse> generateAgentTZ({
-    required String rawRequirements,
-    String? changes,
-    String? templateContent,
-    OutputFormat format = OutputFormat.markdown,
-    Function(String)? onProgress,
-  }) async {
-    // Validate service state
-    _validateServiceState();
-    
-    // Process Confluence content markers
-    final processedRawRequirements = processConfluenceContent(rawRequirements);
-    final processedChanges = changes != null ? processConfluenceContent(changes) : null;
-    
-    // Generate agent system prompt
-    String systemPrompt = _buildAgentSystemPrompt(templateContent, format);
-    
-    // Build user prompt
-    String userPrompt = _buildAgentUserPrompt(processedRawRequirements, processedChanges, format);
-    
-    // Send request
-    final rawResponse = await _provider!.sendRequest(
-      systemPrompt: systemPrompt,
-      userPrompt: userPrompt,
-      model: _config!.defaultModel,
-      temperature: 0.7,
-    );
-    
-    // Parse agent response
-    final agentResponse = _parseAgentResponse(rawResponse);
-    
-    notifyListeners();
-    return agentResponse;
-  }
 
   /// Проводит ревью шаблона
   Future<String> reviewTemplate(String templateContent, String? modelId) async {
@@ -722,114 +778,4 @@ $templateContent
     }
   }
 
-  /// Новый системный промпт для агентов
-  String _buildAgentSystemPrompt(String? templateContent, OutputFormat format) {
-    final formatName = format == OutputFormat.markdown ? 'Markdown' : 'HTML (Confluence)';
-    final formatRules = format == OutputFormat.markdown
-      ? 'Используй только стандартный Markdown синтаксис без HTML тегов'
-      : 'Используй HTML теги: <h1>, <h2>, <p>, <ul>, <li>, <strong>, <table> и Confluence макросы';
-
-    return '''Ты ИИ-агент для создания технических заданий. Работаешь пошагово, генерируя структурированные ответы.
-
-ФОРМАТ ВЫВОДА: Строго JSON со следующей структурой:
-
-{
-  "user_message": "дружелюбное сообщение пользователю о текущем шаге",
-  "actions": [
-    {
-      "type": "generate_content",
-      "section": "название_раздела",
-      "content": "сгенерированный контент в формате $formatName",
-      "progress_message": "Генерирую раздел 'название_раздела'..."
-    }
-  ],
-  "specification_sections": {
-    "section_name": "обновленный контент раздела",
-    "another_section": "другой контент"
-  }
-}
-
-ТИПЫ ДЕЙСТВИЙ:
-- "generate_content" - генерация контента для конкретного раздела ТЗ
-- "validate_requirements" - валидация требований
-- "suggest_improvements" - предложение улучшений
-- "create_structure" - создание структуры документа
-- "update_section" - обновление существующего раздела
-
-ПРАВИЛА ГЕНЕРАЦИИ:
-1. $formatRules
-2. Работай пошагово - генерируй по 1-2 раздела за раз
-3. В user_message объясняй что делаешь
-4. В progress_message указывай текущий прогресс
-5. ВСЕГДА возвращай валидный JSON без дополнительного текста
-
-${templateContent != null ? 'ШАБЛОН:\n$templateContent\n' : ''}''';
-  }
-
-  /// Строит пользовательский промт для агента
-  String _buildAgentUserPrompt(String rawRequirements, String? changes, OutputFormat format) {
-    final formatInstruction = format == OutputFormat.markdown ? 'Markdown формате' : 'HTML формате';
-    
-    String userPrompt = 'Создай техническое задание в $formatInstruction на основе следующих требований:\n\n$rawRequirements';
-    
-    if (changes != null && changes.isNotEmpty) {
-      userPrompt += '\n\nУчти следующие изменения:\n\n$changes';
-    }
-    
-    userPrompt += '\n\nВАЖНО: Верни ТОЛЬКО валидный JSON согласно указанной структуре!';
-    
-    return userPrompt;
-  }
-
-  /// Парсит ответ агента из JSON
-  AgentResponse _parseAgentResponse(String rawResponse) {
-    try {
-      // Очищаем ответ от возможного мусора
-      final cleanedResponse = _cleanJsonResponse(rawResponse);
-      
-      // Парсим JSON
-      final Map<String, dynamic> jsonData = jsonDecode(cleanedResponse);
-      
-      // Валидируем обязательные поля агентского ответа
-      _validateAgentResponse(jsonData);
-      
-      return AgentResponse.fromJson(jsonData);
-    } catch (e) {
-      throw Exception('Ошибка парсинга ответа агента: $e');
-    }
-  }
-
-  /// Очищает JSON ответ от мусора
-  String _cleanJsonResponse(String response) {
-    // Убираем все до первой открывающей скобки
-    final jsonStart = response.indexOf('{');
-    if (jsonStart == -1) {
-      throw Exception('Ответ не содержит JSON объект');
-    }
-    
-    // Убираем все после последней закрывающей скобки
-    final jsonEnd = response.lastIndexOf('}');
-    if (jsonEnd == -1) {
-      throw Exception('Ответ содержит некорректный JSON объект');
-    }
-    
-    return response.substring(jsonStart, jsonEnd + 1);
-  }
-
-  /// Валидирует ответ агента
-  void _validateAgentResponse(Map<String, dynamic> response) {
-    if (!response.containsKey('user_message') ||
-        response['user_message'] is! String) {
-      throw Exception('Отсутствует обязательное поле user_message');
-    }
-
-    if (response.containsKey('actions') && response['actions'] is! List) {
-      throw Exception('Поле actions должно быть массивом');
-    }
-
-    if (response.containsKey('specification_sections') &&
-        response['specification_sections'] is! Map) {
-      throw Exception('Поле specification_sections должно быть объектом');
-    }
-  }
 }

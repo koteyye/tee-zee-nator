@@ -13,6 +13,10 @@ void main() {
 
     // Verify that the app shows either the setup screen or main screen
     // The app should show a loading indicator initially, then navigate
-    expect(find.byType(CircularProgressIndicator).or(find.text('Настройка подключения')).or(find.text('TeeZeeNator')), findsWidgets);
+  final loading = find.byType(CircularProgressIndicator);
+  final setup = find.text('Настройка подключения');
+  final mainTitle = find.text('TeeZeeNator');
+  // At least one of these should be present.
+  expect(loading.evaluate().isNotEmpty || setup.evaluate().isNotEmpty || mainTitle.evaluate().isNotEmpty, isTrue);
   });
 }

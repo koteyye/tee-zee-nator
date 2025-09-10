@@ -57,19 +57,25 @@ class ConfluenceService extends ChangeNotifier {
   }
 
   /// Tests connection to Confluence by performing a health check
-  /// 
+  ///
   /// Uses the /wiki/rest/api/space endpoint to verify:
   /// - Network connectivity
   /// - Authentication credentials
   /// - API accessibility
-  /// 
+  ///
   /// Returns true if connection is successful, false otherwise
-  Future<bool> testConnection(String baseUrl, String email, String token) async {
+  /// Supports both legacy 3-arg (baseUrl, email, token) and simplified 2-arg (baseUrl, token) usages.
+  /// When called with 2 args, the stored configuration email is used.
+  Future<bool> testConnection(String baseUrl, String emailOrToken, [String? token]) async {
+    final usingTwoArgs = token == null;
+    final email = usingTwoArgs ? (_config?.email ?? '') : emailOrToken;
+    final actualToken = usingTwoArgs ? emailOrToken : token;
+
     // Sanitize inputs first
     final sanitizedUrl = InputSanitizer.sanitizeBaseUrl(baseUrl);
     final sanitizedEmail = InputSanitizer.sanitizeEmail(email);
-    final sanitizedToken = InputSanitizer.sanitizeApiToken(token);
-    
+  final sanitizedToken = InputSanitizer.sanitizeApiToken(actualToken);
+
     if (sanitizedUrl.isEmpty || sanitizedEmail.isEmpty || sanitizedToken.isEmpty) {
       _setError('Base URL, email, and token are required for connection test');
       return false;
@@ -146,6 +152,7 @@ class ConfluenceService extends ChangeNotifier {
       _setLoading(false);
     }
   }
+
 
   /// Retrieves content from a Confluence page
   /// 

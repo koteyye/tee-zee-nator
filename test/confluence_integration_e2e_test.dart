@@ -139,7 +139,7 @@ void main() {
             await tester.pumpAndSettle();
 
             // Verify connection test was called
-            verify(mockConfluenceService.testConnection('https://test.atlassian.net', 'test-token')).called(1);
+            verify(mockConfluenceService.testConnection('https://test.atlassian.net', '', 'test-token')).called(1);
           }
 
           // Save configuration
@@ -206,7 +206,7 @@ void main() {
             await tester.pumpAndSettle();
 
             // Verify error handling
-            verify(mockConfluenceService.testConnection('https://invalid.atlassian.net', 'invalid-token')).called(1);
+            verify(mockConfluenceService.testConnection('https://invalid.atlassian.net', '', 'invalid-token')).called(1);
             
             // Save button should remain disabled
             final saveButton = find.byWidgetPredicate((widget) => 

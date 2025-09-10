@@ -216,7 +216,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // Verify health check was called
-        verify(mockConfluenceService.testConnection('https://test.atlassian.net', 'test-token')).called(1);
+  verify(mockConfluenceService.testConnection('https://test.atlassian.net', '', 'test-token')).called(1);
       });
 
       testWidgets('1.6 - Should show green indicator and enable Save on successful connection', (WidgetTester tester) async {

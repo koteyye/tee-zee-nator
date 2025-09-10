@@ -57,17 +57,17 @@ void main() {
 
     group('Connection Testing', () {
       test('should validate input parameters', () async {
-        final result1 = await confluenceService.testConnection('', 'token');
+  final result1 = await confluenceService.testConnection('', '', 'token');
         expect(result1, isFalse);
         expect(confluenceService.lastError, contains('required'));
 
-        final result2 = await confluenceService.testConnection('url', '');
+  final result2 = await confluenceService.testConnection('url', '', '');
         expect(result2, isFalse);
         expect(confluenceService.lastError, contains('required'));
       });
 
       test('should handle invalid base URL format', () async {
-        final result = await confluenceService.testConnection('invalid-url', 'token');
+  final result = await confluenceService.testConnection('invalid-url', '', 'token');
         expect(result, isFalse);
         expect(confluenceService.lastError, isNotNull);
       });
@@ -133,7 +133,7 @@ void main() {
         expect(confluenceService.isLoading, isFalse);
         
         // Test connection will set loading state
-        final future = confluenceService.testConnection('invalid', 'token');
+  final future = confluenceService.testConnection('invalid', '', 'token');
         
         await future;
         
@@ -143,7 +143,7 @@ void main() {
 
       test('should clear errors on successful initialization', () async {
         // First, cause an error
-        await confluenceService.testConnection('', '');
+  await confluenceService.testConnection('', '', '');
         expect(confluenceService.lastError, isNotNull);
 
         // Then, initialize successfully

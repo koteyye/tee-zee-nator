@@ -79,9 +79,9 @@ void main() {
       });
 
       test('should reject empty inputs in testConnection', () async {
-        final result1 = await service.testConnection('', 'valid_token');
-        final result2 = await service.testConnection('https://company.atlassian.net', '');
-        final result3 = await service.testConnection('', '');
+  final result1 = await service.testConnection('', '', 'valid_token');
+  final result2 = await service.testConnection('https://company.atlassian.net', '', '');
+  final result3 = await service.testConnection('', '', '');
         
         expect(result1, isFalse);
         expect(result2, isFalse);

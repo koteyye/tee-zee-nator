@@ -3,17 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/config_service.dart';
 import '../services/llm_service.dart';
+import '../services/streaming_llm_service.dart';
+import '../services/streaming_session_controller.dart';
+import '../widgets/main_screen/stream_result_panel.dart';
 import '../services/template_service.dart';
 import '../services/file_service.dart';
 import '../services/confluence_session_manager.dart';
-import '../services/agent_controller.dart';
 import '../models/generation_history.dart';
 import '../models/output_format.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
-import '../widgets/main_screen/markdown_processor.dart';
-import '../widgets/main_screen/content_processor.dart';
 import '../widgets/main_screen/confluence_publish_modal.dart';
-import '../widgets/main_screen/agent_result_panel.dart';
 import '../widgets/common/user_guidance_widget.dart';
 import '../widgets/common/enhanced_tooltip.dart';
 import 'setup_screen.dart';
@@ -53,9 +52,12 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   final _rawRequirementsController = TextEditingController();
   final _changesController = TextEditingController();
   
-  // ЗАМЕНЯЕМ классические поля на агентские
-  late AgentController _agentController; // ОСНОВНОЙ контроллер
+  String _generatedTz = '';
+  String _originalContent = '';
   final List<GenerationHistory> _history = [];
+  // Streaming replaces legacy generating flag; legacy field removed
+  late StreamingSessionController _streamController;
+  StreamingLLMService? _streamService;
   String? _errorMessage;
   OutputFormat _selectedFormat = OutputFormat.markdown; // Default to Markdown
   final bool _showGuidance = true;
@@ -67,13 +69,11 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(this);
     
-    _loadModels();
-    
-    // Инициализируем агентский контроллер после загрузки конфигурации
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final llmService = Provider.of<LLMService>(context, listen: false);
-      _agentController = AgentController(llmService: llmService);
-    });
+  _loadModels();
+  // Streaming controller will be initialized after models/config available
+  // Initialize empty streaming controller with a placeholder service (assigned later when used)
+  _streamController = StreamingSessionController(StreamingLLMService(llmService: Provider.of<LLMService>(context, listen: false)));
+  _streamController.onFinalized = _handleStreamFinalized;
     
     // Добавляем слушателей для обновления состояния кнопки
     _rawRequirementsController.addListener(() {
@@ -95,7 +95,8 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     
     _rawRequirementsController.dispose();
     _changesController.dispose();
-    super.dispose();
+  _streamController.dispose();
+  super.dispose();
   }
 
   @override
@@ -144,67 +145,53 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
   
+  /// Handles format selection changes and persists preference
+  // Removed unused _onFormatChanged and _getProcessorForFormat in streaming mode
   
-  Future<void> _generateTZ() async {
-    final userRequest = _rawRequirementsController.text.trim();
-    if (userRequest.isEmpty) return;
-
+  Future<void> _startStreamingGeneration() async {
+    if (_rawRequirementsController.text.trim().isEmpty) return;
     final configService = Provider.of<ConfigService>(context, listen: false);
-    
-    // Проверяем наличие конфигурации
+    final templateService = Provider.of<TemplateService>(context, listen: false);
     if (configService.config == null) {
-      setState(() {
-        _errorMessage = 'Конфигурация не найдена. Перейдите в настройки.';
-      });
+      setState(() { _errorMessage = 'Конфигурация не найдена. Перейдите в настройки.'; });
       return;
     }
+    final activeTemplate = await templateService.getActiveTemplate();
+    _streamService ??= StreamingLLMService(
+      llmService: Provider.of<LLMService>(context, listen: false),
+    );
+    _streamController.reset();
+    _streamController.onFinalized = _handleStreamFinalized;
+    await _streamController.start(
+      rawRequirements: _rawRequirementsController.text,
+      changes: _changesController.text.isNotEmpty ? _changesController.text : null,
+      templateContent: activeTemplate?.content,
+      format: _selectedFormat,
+    );
+  }
 
+  void _handleStreamFinalized(StreamingState state) {
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    if (state.document.trim().isEmpty) return;
     setState(() {
-      _errorMessage = null;
-    });
-
-    try {
-      // Используем агентский подход
-      await _agentController.handleAgentRequest(
-        rawRequirements: userRequest,
+      _history.insert(0, GenerationHistory(
+        rawRequirements: _rawRequirementsController.text,
+        changes: _changesController.text.isNotEmpty ? _changesController.text : null,
+        generatedTz: state.document,
+        timestamp: DateTime.now(),
+        model: configService.config?.defaultModel ?? 'unknown',
         format: _selectedFormat,
-        changes: _changesController.text.trim().isNotEmpty
-            ? _changesController.text.trim()
-            : null,
-      );
-
-      // Обновляем UI
-      setState(() {});
-      
-      // Добавляем в историю если есть результат
-      if (_agentController.currentSpec.title.isNotEmpty) {
-        _history.insert(0, GenerationHistory(
-          rawRequirements: userRequest,
-          changes: _changesController.text.isNotEmpty ? _changesController.text : null,
-          generatedTz: _agentController.formatSpecForOutput(),
-          timestamp: DateTime.now(),
-          model: configService.config!.defaultModel ?? 'unknown',
-          format: _selectedFormat,
-        ));
-      }
-      
-      // Очищаем поле изменений после генерации
-      _changesController.clear();
-      
-    } catch (e) {
-      _errorMessage = 'Ошибка при генерации ТЗ: $e';
-      print('Ошибка генерации: $e');
-    }
+      ));
+    });
   }
   
   Future<void> _saveFile() async {
-    final content = _agentController.formatSpecForOutput();
-    if (content.isEmpty) return;
+    if (_originalContent.isEmpty) return;
     
     try {
       // Use the enhanced file service with format-specific handling and validation
       final filePath = await FileService.saveFileWithFormat(
-        content: content,
+        content: _originalContent,
         format: _selectedFormat,
       );
       
@@ -244,33 +231,26 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     setState(() {
       _rawRequirementsController.clear();
       _changesController.clear();
-      _agentController.resetSpecification();
+      _generatedTz = '';
+      _originalContent = '';
       _history.clear();
       _errorMessage = null;
     });
   }
 
   void _copyToClipboard() {
-    final content = _agentController.formatSpecForOutput();
-    if (content.isNotEmpty) {
-      Clipboard.setData(ClipboardData(text: content));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('ТЗ скопировано в буфер обмена'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
-      );
+    final text = _streamController.state.document.isNotEmpty ? _streamController.state.document : _generatedTz;
+    if (text.isNotEmpty) {
+      Clipboard.setData(ClipboardData(text: text));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ТЗ скопировано в буфер обмена'), duration: Duration(seconds: 2)));
     }
   }
 
   void _showConfluencePublishModal() {
-    final content = _agentController.formatSpecForOutput();
-    
     // Получаем заголовок из первой строки сгенерированного ТЗ, если он есть
     String? suggestedTitle;
-    if (content.isNotEmpty) {
-      final firstLine = content.split('\n').first.trim();
+    if (_generatedTz.isNotEmpty) {
+      final firstLine = _generatedTz.split('\n').first.trim();
       if (firstLine.startsWith('#')) {
         // Если первая строка - заголовок в формате Markdown, удаляем символы #
         suggestedTitle = firstLine.replaceAll(RegExp(r'^#+\s*'), '');
@@ -283,7 +263,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (context) => ConfluencePublishModal(
-        content: content,
+        content: _generatedTz,
         suggestedTitle: suggestedTitle,
       ),
     );
@@ -456,15 +436,16 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         actions: <Type, Action<Intent>>{
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (ActivateIntent intent) {
-              if (!_agentController.isProcessing && _rawRequirementsController.text.trim().isNotEmpty) {
-                _generateTZ();
+              if (!_streamController.isActive && _rawRequirementsController.text.trim().isNotEmpty) {
+                _startStreamingGeneration();
               }
               return null;
             },
           ),
           SaveIntent: CallbackAction<SaveIntent>(
             onInvoke: (SaveIntent intent) {
-              if (_agentController.formatSpecForOutput().isNotEmpty) {
+              final doc = _streamController.state.document.isNotEmpty ? _streamController.state.document : _generatedTz;
+              if (doc.isNotEmpty) {
                 _saveFile();
               }
               return null;
@@ -472,7 +453,8 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           ),
           CopyIntent: CallbackAction<CopyIntent>(
             onInvoke: (CopyIntent intent) {
-              if (_agentController.formatSpecForOutput().isNotEmpty) {
+              final doc = _streamController.state.document.isNotEmpty ? _streamController.state.document : _generatedTz;
+              if (doc.isNotEmpty) {
                 _copyToClipboard();
               }
               return null;
@@ -481,7 +463,8 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           PublishIntent: CallbackAction<PublishIntent>(
             onInvoke: (PublishIntent intent) {
               final configService = Provider.of<ConfigService>(context, listen: false);
-              if (_agentController.formatSpecForOutput().isNotEmpty &&
+              final doc = _streamController.state.document.isNotEmpty ? _streamController.state.document : _generatedTz;
+              if (doc.isNotEmpty && 
                   configService.isConfluenceEnabled()) {
                 _showConfluencePublishModal();
               }
@@ -529,127 +512,152 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           });
         }
         
-        return Consumer<LLMService>(
-          builder: (context, llmService, child) {
-            return Scaffold(
-              appBar: AppBar(
-                actions: [
-                  EnhancedTooltip(
-                    message: 'Manage specification templates',
-                    keyboardShortcut: 'Ctrl+T',
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.description, size: 20),
-                      label: const Text('Шаблоны ТЗ'),
-                      onPressed: _openTemplateManagement,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  EnhancedTooltip(
-                    message: 'Open application settings',
-                    keyboardShortcut: 'Ctrl+,',
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.settings, size: 20),
-                      label: const Text('Настройки'),
-                      onPressed: _openSettings,
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  EnhancedTooltip(
-                    message: 'Show keyboard shortcuts',
-                    keyboardShortcut: 'F1',
-                    child: IconButton(
-                      icon: const Icon(Icons.help_outline, size: 20),
-                      onPressed: _showKeyboardShortcuts,
-                      style: IconButton.styleFrom(
-                        foregroundColor: Colors.black87,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-              body: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Настройки модели
-                const ModelSettingsCard(),
-                const SizedBox(height: 16),
-                
-                // User guidance (show for first-time users or when helpful)
-                if (_showGuidance && _agentController.formatSpecForOutput().isEmpty) ...[
-                  Consumer<ConfigService>(
-                    builder: (context, configService, child) {
-                      return ConfluenceGuidanceWidget(
-                        isConfluenceEnabled: configService.isConfluenceEnabled(),
-                        hasValidConnection: configService.getConfluenceConfig()?.isValid ?? false,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                  
-                // Основной контент
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Левая панель - ввод
-                      Expanded(
-                        flex: 1,
-                        child: InputPanel(
-                          rawRequirementsController: _rawRequirementsController,
-                          changesController: _changesController,
-                          generatedTz: _agentController.formatSpecForOutput(),
-                          history: _history,
-                          isGenerating: _agentController.isProcessing,
-                          errorMessage: _errorMessage,
-                          onGenerate: _generateTZ,
-                          onClear: _clearAll,
-                          onHistoryItemTap: (historyItem) {
-                            setState(() {
-                              // TODO: Можно добавить загрузку истории в агентский контроллер
-                              _selectedFormat = historyItem.format; // Restore format context
-                            });
-                          },
-                        ),
-                      ),
-                      
-                      const SizedBox(width: 16),
-                      
-                      // Правая панель - результат
-                      Expanded(
-                        flex: 1,
-                        child: ResultPanel(
-                          generatedTz: _agentController.formatSpecForOutput(),
-                          onSave: _saveFile,
-                        ),
-                      ),
-                    ],
+        return Scaffold(
+          appBar: AppBar(
+            actions: [
+              EnhancedTooltip(
+                message: 'Manage specification templates',
+                keyboardShortcut: 'Ctrl+T',
+                child: TextButton.icon(
+                  icon: const Icon(Icons.description, size: 20),
+                  label: const Text('Шаблоны ТЗ'),
+                  onPressed: _openTemplateManagement,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.black87,
                   ),
                 ),
-                  
-                const SizedBox(height: 16),
-                
-                // Footer
-                const AppFooter(),
-              ],
-            ),
+              ),
+              const SizedBox(width: 8),
+              EnhancedTooltip(
+                message: 'Open application settings',
+                keyboardShortcut: 'Ctrl+,',
+                child: TextButton.icon(
+                  icon: const Icon(Icons.settings, size: 20),
+                  label: const Text('Настройки'),
+                  onPressed: _openSettings,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.black87,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              EnhancedTooltip(
+                message: 'Show keyboard shortcuts',
+                keyboardShortcut: 'F1',
+                child: IconButton(
+                  icon: const Icon(Icons.help_outline, size: 20),
+                  onPressed: _showKeyboardShortcuts,
+                  style: IconButton.styleFrom(
+                    foregroundColor: Colors.black87,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
-        );
-          }
-        );
+          body: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Настройки модели
+            const ModelSettingsCard(),
+            const SizedBox(height: 16),
+            
+            // User guidance (show for first-time users or when helpful)
+            if (_showGuidance && _streamController.state.document.isEmpty) ...[
+              Consumer<ConfigService>(
+                builder: (context, configService, child) {
+                  return ConfluenceGuidanceWidget(
+                    isConfluenceEnabled: configService.isConfluenceEnabled(),
+                    hasValidConnection: configService.getConfluenceConfig()?.isValid ?? false,
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+
+              
+            // Основной контент
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Левая панель - ввод
+                  Expanded(
+                    flex: 1,
+                    child: ChangeNotifierProvider.value(
+                      value: _streamController,
+                      child: Consumer<StreamingSessionController>(
+                        builder: (context, sc, _) {
+                          return InputPanel(
+                            rawRequirementsController: _rawRequirementsController,
+                            changesController: _changesController,
+                            generatedTz: sc.state.document, // for visibility of changes textarea
+                            history: _history,
+                            isGenerating: sc.isActive,
+                            errorMessage: _errorMessage,
+                            onGenerate: _startStreamingGeneration,
+                            onClear: () {
+                              _clearAll();
+                              sc.reset();
+                            },
+                            onHistoryItemTap: (historyItem) {
+                              // history restore: treat as static document
+                              _generatedTz = historyItem.generatedTz;
+                              _originalContent = historyItem.generatedTz;
+                              _selectedFormat = historyItem.format;
+                              sc.reset();
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(width: 16),
+                  
+                  // Правая панель - результат
+                  Expanded(
+                    flex: 1,
+                    child: ChangeNotifierProvider.value(
+                      value: _streamController,
+                      child: Consumer<StreamingSessionController>(
+                        builder: (context, sc, _) {
+                          // Keep _originalContent updated for saving
+                          _originalContent = sc.state.document;
+                          return StreamResultPanel(
+                            documentText: sc.state.document,
+                            isActive: sc.isActive,
+                            finalized: sc.isFinalized,
+                            aborted: sc.isAborted,
+                            phase: sc.state.phase,
+                            progress: sc.state.progress,
+                            summary: sc.state.summary,
+                            error: sc.state.error,
+                            onSave: _saveFile,
+                            onAbort: () => _streamController.abort(),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+              
+            const SizedBox(height: 16),
+            
+            // Footer
+            const AppFooter(),
+          ],
+        ),
+      ),
+    );
           },
         ),
       ),
     );
   }
 }
+
