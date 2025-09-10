@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import '../../services/config_service.dart';
 import '../../services/confluence_service.dart';
 import '../../services/confluence_content_processor.dart';
@@ -724,7 +725,13 @@ class _InputPanelState extends State<InputPanel> {
                   ),
                   const SizedBox(height: 8),
                   Container(
-                    height: 150,
+                    // Dynamic height: show up to 4 history items without scrolling
+                    // Approx dense ListTile with subtitle ~70px
+                    height: (() {
+                      final visible = math.min(widget.history.length, 4);
+                      if (visible == 0) return 0.0;
+                      return visible * 70.0; // 4 items => 280px
+                    })(),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade300),
                       borderRadius: BorderRadius.circular(8),

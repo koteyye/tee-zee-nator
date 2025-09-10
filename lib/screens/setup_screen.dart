@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/template_service.dart';
 import '../services/config_service.dart';
@@ -40,6 +41,31 @@ class _SetupScreenState extends State<SetupScreen> {
   String? _errorMessage;
   OpenAIModel? _selectedModel;
   List<OpenAIModel> _availableModels = [];
+  bool _hideOpenAIToken = true;
+  bool _hideLLMOpsAuth = true;
+  bool _hideCerebrasToken = true;
+  bool _hideGroqToken = true;
+
+  Future<void> _pasteInto(TextEditingController c) async {
+    final data = await Clipboard.getData('text/plain');
+    if (data != null && data.text != null && data.text!.trim().isNotEmpty) {
+      setState(() { c.text = data.text!.trim(); });
+    }
+  }
+
+  String _friendlyError(Object e) {
+    final s = e.toString();
+    if (s.contains('Failed host lookup')) {
+      return 'Не удалось разрешить хост. Проверьте интернет / DNS / прокси.';
+    }
+    if (s.contains('SocketException')) {
+      return 'Сетевая ошибка. Проверьте подключение.';
+    }
+    if (s.contains('CERT') || s.contains('certificate')) {
+      return 'Ошибка SSL сертификата. Возможно MITM или недоверенный корневой сертификат.';
+    }
+    return s;
+  }
   
   @override
   void initState() {
@@ -68,6 +94,15 @@ class _SetupScreenState extends State<SetupScreen> {
 
   Future<void> _loadCurrentConfig() async {
     final configService = Provider.of<ConfigService>(context, listen: false);
+    if (!mounted) return;
+    // Гарантируем инициализацию (раньше init вызывался не всегда)
+    try {
+      await configService.init();
+    } catch (e) {
+      if (mounted) {
+        debugPrint('[SetupScreen] init error: $e');
+      }
+    }
     final config = configService.config;
     if (config != null) {
       setState(() {
@@ -84,6 +119,8 @@ class _SetupScreenState extends State<SetupScreen> {
         } else if (_selectedProvider == 'groq') {
           _groqTokenController.text = config.groqToken ?? '';
         }
+  // Помечаем как успешное подключение, если есть валидная конфигурация
+  _connectionSuccess = true;
       });
     }
   }
@@ -184,11 +221,11 @@ class _SetupScreenState extends State<SetupScreen> {
         }
         throw Exception(llmService.error ?? errorMsg);
       }
-    } catch (e) {
+  } catch (e) {
       setState(() {
         _isTestingConnection = false;
         _connectionSuccess = false;
-        _errorMessage = 'Ошибка подключения: $e';
+    _errorMessage = 'Ошибка подключения: ${_friendlyError(e)}';
       });
     }
   }
@@ -398,11 +435,26 @@ class _SetupScreenState extends State<SetupScreen> {
                 TextFormField(
                   controller: _tokenController,
                   focusNode: _tokenFocusNode,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'API Token',
                     hintText: 'sk-...',
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.paste, size: 18),
+                          tooltip: 'Вставить из буфера',
+                          onPressed: () => _pasteInto(_tokenController),
+                        ),
+                        IconButton(
+                          icon: Icon(_hideOpenAIToken ? Icons.visibility : Icons.visibility_off, size: 18),
+                          tooltip: _hideOpenAIToken ? 'Показать' : 'Скрыть',
+                          onPressed: () => setState(() => _hideOpenAIToken = !_hideOpenAIToken),
+                        ),
+                      ],
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _hideOpenAIToken,
                   validator: (value) {
                     if (_selectedProvider == 'openai' && (value == null || value.isEmpty)) {
                       return 'Введите API токен';
@@ -444,11 +496,26 @@ class _SetupScreenState extends State<SetupScreen> {
                 TextFormField(
                   controller: _llmopsAuthController,
                   focusNode: _llmopsAuthFocusNode,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Authorization Header (необязательно)',
                     hintText: 'Bearer your-token',
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.paste, size: 18),
+                          tooltip: 'Вставить',
+                          onPressed: () => _pasteInto(_llmopsAuthController),
+                        ),
+                        IconButton(
+                          icon: Icon(_hideLLMOpsAuth ? Icons.visibility : Icons.visibility_off, size: 18),
+                          tooltip: _hideLLMOpsAuth ? 'Показать' : 'Скрыть',
+                          onPressed: () => setState(() => _hideLLMOpsAuth = !_hideLLMOpsAuth),
+                        ),
+                      ],
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _hideLLMOpsAuth,
                 ),
               ],
               
@@ -464,11 +531,26 @@ class _SetupScreenState extends State<SetupScreen> {
                 TextFormField(
                   controller: _cerebrasTokenController,
                   focusNode: _cerebrasFocusNode,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Cerebras AI Token',
                     hintText: 'Введите ваш Cerebras AI токен',
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.paste, size: 18),
+                          tooltip: 'Вставить',
+                          onPressed: () => _pasteInto(_cerebrasTokenController),
+                        ),
+                        IconButton(
+                          icon: Icon(_hideCerebrasToken ? Icons.visibility : Icons.visibility_off, size: 18),
+                          tooltip: _hideCerebrasToken ? 'Показать' : 'Скрыть',
+                          onPressed: () => setState(() => _hideCerebrasToken = !_hideCerebrasToken),
+                        ),
+                      ],
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _hideCerebrasToken,
                   validator: (value) {
                     if (_selectedProvider == 'cerebras' && (value == null || value.isEmpty)) {
                       return 'Введите Cerebras AI токен';
@@ -490,11 +572,26 @@ class _SetupScreenState extends State<SetupScreen> {
                 TextFormField(
                   controller: _groqTokenController,
                   focusNode: _groqFocusNode,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Groq Token',
                     hintText: 'Введите ваш Groq токен',
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.paste, size: 18),
+                          tooltip: 'Вставить',
+                          onPressed: () => _pasteInto(_groqTokenController),
+                        ),
+                        IconButton(
+                          icon: Icon(_hideGroqToken ? Icons.visibility : Icons.visibility_off, size: 18),
+                          tooltip: _hideGroqToken ? 'Показать' : 'Скрыть',
+                          onPressed: () => setState(() => _hideGroqToken = !_hideGroqToken),
+                        ),
+                      ],
+                    ),
                   ),
-                  obscureText: true,
+                  obscureText: _hideGroqToken,
                   validator: (value) {
                     if (_selectedProvider == 'groq' && (value == null || value.isEmpty)) {
                       return 'Введите Groq токен';

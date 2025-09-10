@@ -27,36 +27,45 @@ void main() async {
   Hive.registerAdapter(OutputFormatAdapter()); // typeId = 11
   Hive.registerAdapter(ConfluenceConfigAdapter()); // typeId = 12
   
-  runApp(MyApp());
+  // Предварительно открываем и инициализируем конфиг (ранняя загрузка перед UI)
+  final preConfigService = ConfigService();
+  try {
+    await preConfigService.init();
+  } catch (e) {
+    debugPrint('[main] ConfigService early init error: $e');
+  }
+  runApp(MyApp(preInitialized: preConfigService));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final ConfigService preInitialized;
+  const MyApp({super.key, required this.preInitialized});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ConfigService()),
+        ChangeNotifierProvider(create: (_) => preInitialized),
         ChangeNotifierProvider(create: (_) => TemplateService()),
         ChangeNotifierProvider(create: (_) => LLMService()),
         ChangeNotifierProvider(create: (_) => ConfluenceService()),
       ],
-      child: MaterialApp(
-        title: 'TeeZeeNator',
-        theme: AppTheme.light,
-        home: FutureBuilder<bool>(
-          future: Future.delayed(Duration.zero, () => _initializeServices(context)),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
-            
-            final hasConfig = snapshot.data ?? false;
-            return hasConfig ? const MainScreen() : const SetupScreen();
-          },
+      child: Builder(
+        builder: (innerContext) => MaterialApp(
+          title: 'TeeZeeNator',
+          theme: AppTheme.light,
+          home: FutureBuilder<bool>(
+            future: _initializeServices(innerContext),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final hasConfig = snapshot.data ?? false;
+              return hasConfig ? const MainScreen() : const SetupScreen();
+            },
+          ),
         ),
       ),
     );
@@ -67,6 +76,8 @@ class MyApp extends StatelessWidget {
       // Get service instances from Provider context
       final configService = Provider.of<ConfigService>(context, listen: false);
       final templateService = Provider.of<TemplateService>(context, listen: false);
+      // Ensure config is initialized (early preInit may already have done this)
+      await configService.init();
       
       // Initialize TemplateService
       await templateService.init();

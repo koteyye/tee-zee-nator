@@ -206,6 +206,21 @@ class StreamingSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Loads a static (already generated) document into the controller state.
+  /// Used when user selects an item from history so that UI widgets relying
+  /// on streaming state can still display content (including Markdown render).
+  void loadStaticDocument(String document) {
+    _state = StreamingState.initial().copyWith(
+      document: document,
+      hasContent: document.trim().isNotEmpty,
+      finalized: true,
+      active: false,
+      phase: 'finalize',
+      progress: 100,
+    );
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _subscription?.cancel();

@@ -21,6 +21,18 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
   
   OpenAIProvider(this._config);
   
+  // Инициализируем таймауты (во избежание вечной загрузки моделей при сетевых проблемах)
+  void _ensureTimeouts() {
+    // Устанавливаем только один раз
+    if (_dio.options.connectTimeout == null || _dio.options.connectTimeout!.inMilliseconds > 15000) {
+      _dio.options = _dio.options.copyWith(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 20),
+        sendTimeout: const Duration(seconds: 20),
+      );
+    }
+  }
+  
   @override
   List<String> get availableModels => _availableModels;
   
@@ -35,6 +47,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
   
   @override
   Future<bool> testConnection() async {
+  _ensureTimeouts();
     try {
       _isLoading = true;
       _error = null;
@@ -66,6 +79,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
   
   @override
   Future<List<String>> getModels() async {
+  _ensureTimeouts();
     try {
       _isLoading = true;
       _error = null;

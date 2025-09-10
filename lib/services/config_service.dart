@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:hive/hive.dart';
 import '../models/app_config.dart';
 import '../models/output_format.dart';
@@ -14,31 +16,63 @@ class ConfigService extends ChangeNotifier {
   
   AppConfig? _config;
   Box<AppConfig>? _box;
+  bool _initialized = false;
   
   AppConfig? get config => _config;
   
   Future<void> init() async {
+    if (_initialized && _box != null && _box!.isOpen) {
+      return; // Уже инициализировано
+    }
     try {
       // Открываем новый бокс
       _box = await Hive.openBox<AppConfig>(_boxName);
+      if (kDebugMode) {
+        try {
+          print('[ConfigService:init] Opened box \'$_boxName\' path=${_box!.path} keys=${_box!.keys.toList()}');
+        } catch (_) {}
+      }
       
       // Пытаемся прочитать конфигурацию
       try {
-        _config = _box!.get(_configKey);
-        
-        // Выполняем миграцию для существующих конфигураций без format preference
+        final stored = _box!.get(_configKey);
+        _config = stored;
         if (_config != null) {
           _config = _migrateConfigIfNeeded(_config!);
         }
       } catch (e) {
-        print('Ошибка при чтении конфига, возможно старый формат: $e');
-        // Если не можем прочитать конфиг, очищаем и создаем новый
-        await _box!.delete(_configKey);
-        _config = null;
+        // НЕ удаляем данные автоматически – избегаем потери настроек
+        print('[ConfigService:init] Ошибка при чтении конфига (сохраняем данные для диагностики): $e');
+        // Пробуем сразу восстановить из резервной копии
+        try {
+          final restored = await _tryRestoreFromBackup();
+          if (restored != null) {
+            _config = restored;
+            await _box!.put(_configKey, _config!);
+            await _box!.flush();
+            print('[ConfigService:init] Конфиг восстановлен из backup после ошибки чтения.');
+          }
+        } catch (e2) {
+          print('[ConfigService:init] Не удалось восстановить из backup после ошибки чтения: $e2');
+        }
+        _config = null; // Оставляем как неинициализированный, пользователь сможет пересохранить
       }
       
       // Если конфигурации нет, оставляем как есть (не мигрируем из legacy, поскольку отключили legacy адаптеры)
       // Пользователь должен будет заново настроить приложение
+      if (_config == null) {
+        try {
+          final restored = await _tryRestoreFromBackup();
+            if (restored != null) {
+              _config = restored;
+              await _box!.put(_configKey, _config!);
+              await _box!.flush();
+              print('Конфиг восстановлен из резервной копии');
+            }
+        } catch (e) {
+          print('Не удалось восстановить конфиг из резервной копии: $e');
+        }
+      }
       
     } catch (e) {
       print('Ошибка при инициализации ConfigService: $e');
@@ -52,6 +86,7 @@ class ConfigService extends ChangeNotifier {
         rethrow;
       }
     }
+    _initialized = true;
   }
   
   /// Migrates existing configuration to include format preference if missing
@@ -135,14 +170,38 @@ class ConfigService extends ChangeNotifier {
   }
   
   Future<bool> hasValidConfiguration() async {
-    await init();
-    return _config != null && 
-           _config!.apiUrl.isNotEmpty && 
-           _config!.apiToken.isNotEmpty;
+    if (!_initialized) {
+      await init();
+    }
+    if (_config == null) return false;
+    final provider = _config!.provider;
+    bool valid;
+    switch (provider) {
+      case 'openai':
+        valid = _config!.apiUrl.isNotEmpty && _config!.apiToken.isNotEmpty;
+        break;
+      case 'cerebras':
+        valid = (_config!.cerebrasToken ?? '').isNotEmpty;
+        break;
+      case 'groq':
+        valid = (_config!.groqToken ?? '').isNotEmpty;
+        break;
+      case 'llmops':
+        valid = (_config!.llmopsBaseUrl ?? '').isNotEmpty && (_config!.llmopsModel ?? '').isNotEmpty;
+        break;
+      default:
+        valid = _config!.apiUrl.isNotEmpty; // fallback
+    }
+    if (kDebugMode) {
+      print('[ConfigService:hasValidConfiguration] provider=$provider valid=$valid config=$_config');
+    }
+    return valid;
   }
   
   Future<void> saveConfig(AppConfig config) async {
-    await init();
+    if (!_initialized) {
+      await init();
+    }
     
     try {
       // Убеждаемся, что сохраняем именно новый тип AppConfig с typeId=4
@@ -167,8 +226,13 @@ class ConfigService extends ChangeNotifier {
       _config = newConfig;
       
       // Очищаем ключ перед записью, чтобы избежать конфликтов типов
-      await _box!.delete(_configKey);
+  // Не удаляем предварительно без необходимости – Hive перезапишет значение
       await _box!.put(_configKey, newConfig);
+      await _box!.flush();
+      await _writeBackup(newConfig);
+      if (kDebugMode) {
+        print('[ConfigService:saveConfig] Saved & flushed. Box keys=${_box!.keys.toList()}');
+      }
       
       notifyListeners();
     } catch (e) {
@@ -179,6 +243,7 @@ class ConfigService extends ChangeNotifier {
         await forceReset();
         // Пытаемся сохранить еще раз после очистки
         await _box!.put(_configKey, config);
+        await _box!.flush();
         _config = config;
         notifyListeners();
       } else {
@@ -202,9 +267,11 @@ class ConfigService extends ChangeNotifier {
   }
   
   Future<void> clearConfig() async {
-    await init();
+  await init();
     await _box!.delete(_configKey);
     _config = null;
+  await _deleteBackup();
+  await _box!.flush();
     notifyListeners();
   }
   
@@ -233,11 +300,66 @@ class ConfigService extends ChangeNotifier {
       _box = await Hive.openBox<AppConfig>(_boxName);
       _config = null;
       notifyListeners();
+  await _deleteBackup();
+      await _box!.flush();
       
       print('Конфигурация успешно сброшена');
     } catch (e) {
       print('Ошибка при принудительном сбросе: $e');
       rethrow;
+    }
+  }
+
+  /// Статическая утилита для получения диагностической информации без расширения публичного API моков
+  static Map<String, dynamic> debugStatusOf(ConfigService s) {
+    return {
+      'initialized': s._initialized,
+      'hasBox': s._box != null,
+      'boxOpen': s._box?.isOpen,
+      'boxPath': s._box?.path,
+      'keys': s._box?.keys.toList(),
+      'config': s._config?.toJson(),
+    };
+  }
+
+  // ===== Backup JSON persistence =====
+  Future<File> _backupFile() async {
+    final dir = await getApplicationSupportDirectory();
+    return File('${dir.path}/app_config_backup.json');
+  }
+
+  Future<void> _writeBackup(AppConfig config) async {
+    try {
+      final f = await _backupFile();
+      await f.writeAsString(jsonEncode(config.toJson()));
+    } catch (e) {
+      print('Не удалось создать резервную копию: $e');
+    }
+  }
+
+  Future<AppConfig?> _tryRestoreFromBackup() async {
+    try {
+      final f = await _backupFile();
+      if (await f.exists()) {
+        final content = await f.readAsString();
+        if (content.trim().isEmpty) return null;
+        final map = jsonDecode(content) as Map<String, dynamic>;
+        return AppConfig.fromJson(map);
+      }
+    } catch (e) {
+      print('Ошибка чтения резервной копии: $e');
+    }
+    return null;
+  }
+
+  Future<void> _deleteBackup() async {
+    try {
+      final f = await _backupFile();
+      if (await f.exists()) {
+        await f.delete();
+      }
+    } catch (e) {
+      print('Не удалось удалить резервную копию: $e');
     }
   }
 

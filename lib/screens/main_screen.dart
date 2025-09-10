@@ -69,7 +69,12 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     // Register for app lifecycle events
     WidgetsBinding.instance.addObserver(this);
     
-  _loadModels();
+    // Откладываем загрузку моделей до завершения первой фазы сборки, чтобы избежать notifyListeners во время build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _loadModels();
+      }
+    });
   // Streaming controller will be initialized after models/config available
   // Initialize empty streaming controller with a placeholder service (assigned later when used)
   _streamController = StreamingSessionController(StreamingLLMService(llmService: Provider.of<LLMService>(context, listen: false)));
@@ -607,7 +612,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                               _generatedTz = historyItem.generatedTz;
                               _originalContent = historyItem.generatedTz;
                               _selectedFormat = historyItem.format;
-                              sc.reset();
+                              sc.loadStaticDocument(historyItem.generatedTz);
                             },
                           );
                         },

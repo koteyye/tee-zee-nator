@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 import '../../models/output_format.dart';
 import '../../services/config_service.dart';
@@ -205,11 +206,23 @@ class StreamResultPanel extends StatelessWidget {
           if (format == OutputFormat.confluence) {
             return HtmlContentViewer(htmlContent: documentText);
           }
-          return SingleChildScrollView(
+          // Markdown rendering
+          return Markdown(
+            data: documentText,
+            selectable: true,
             padding: const EdgeInsets.all(16),
-            child: SelectableText(
-              documentText,
-              style: const TextStyle(fontSize: 14, height: 1.45, color: Colors.black87),
+            styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+              p: const TextStyle(fontSize: 14, height: 1.45, color: Colors.black87),
+              h1: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              h2: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+              h3: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              codeblockDecoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              code: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+              blockquote: const TextStyle(color: Colors.black87),
             ),
           );
         },
