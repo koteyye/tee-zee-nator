@@ -12,12 +12,16 @@ class TemplateService extends ChangeNotifier {
   late Box<Template> _templatesBox;
   late Box<String> _settingsBox;
   bool _initialized = false;
-  
-  static const String _defaultMarkdownKey = 'default_markdown';
-  static const String _defaultConfluenceKey = 'default_confluence';
-  static const String _activeMarkdownKey = 'active_template_markdown';
-  static const String _activeConfluenceKey = 'active_template_confluence';
-  
+
+  // Unified keys (legacy keys will be migrated)
+  static const String _defaultKey = 'default_markdown';
+  static const String _activeKey = 'active_template';
+
+  // Legacy keys kept for migration only
+  static const String _legacyDefaultConfluenceKey = 'default_confluence';
+  static const String _legacyActiveMarkdownKey = 'active_template_markdown';
+  static const String _legacyActiveConfluenceKey = 'active_template_confluence';
+
   bool get isInitialized => _initialized;
   
   Future<void> init() async {
@@ -25,11 +29,12 @@ class TemplateService extends ChangeNotifier {
       _templatesBox = await Hive.openBox<Template>('templates');
       _settingsBox = await Hive.openBox<String>('template_settings');
       
-      // Создаем дефолтный шаблон при первом запуске
-      await _ensureDefaultTemplate();
-      
-      // Migration for legacy templates
-      await _migrateLegacyTemplates();
+  // Ensure unified default template exists
+  await _ensureUnifiedDefaultTemplate();
+
+  // Migrate legacy templates/keys (format split) -> unified
+  await _migrateLegacyTemplates();
+  await _migrateLegacyKeys();
       
       _initialized = true;
       notifyListeners();
@@ -41,57 +46,25 @@ class TemplateService extends ChangeNotifier {
   }
   
   
-  Future<void> _ensureDefaultTemplate() async {
-    // Markdown default
-    if (!_templatesBox.containsKey(_defaultMarkdownKey)) {
+  Future<void> _ensureUnifiedDefaultTemplate() async {
+    if (!_templatesBox.containsKey(_defaultKey)) {
       try {
         final defaultContent = await rootBundle.loadString('tz_pattern.md');
-        
         final defaultTemplate = Template(
-          id: _defaultMarkdownKey,
-          name: 'Шаблон по умолчанию (Markdown)',
+          id: _defaultKey,
+          name: 'Шаблон по умолчанию',
           content: defaultContent,
           isDefault: true,
           createdAt: DateTime.now(),
           format: TemplateFormat.markdown,
         );
-        
-        await _templatesBox.put(_defaultMarkdownKey, defaultTemplate);
-        
-        if (!_settingsBox.containsKey(_activeMarkdownKey)) {
-          await _settingsBox.put(_activeMarkdownKey, _defaultMarkdownKey);
+        await _templatesBox.put(_defaultKey, defaultTemplate);
+        if (!_settingsBox.containsKey(_activeKey)) {
+          await _settingsBox.put(_activeKey, _defaultKey);
         }
-        
-        log('Default Markdown template created');
+        log('Unified default template created');
       } catch (e) {
-        log('Error creating default Markdown template: $e');
-        rethrow;
-      }
-    }
-    
-    // Confluence default
-    if (!_templatesBox.containsKey(_defaultConfluenceKey)) {
-      try {
-        final defaultContent = await rootBundle.loadString('assets/tz_pattern_confluence.html');
-        
-        final defaultTemplate = Template(
-          id: _defaultConfluenceKey,
-          name: 'Шаблон по умолчанию (Confluence)',
-          content: defaultContent,
-          isDefault: true,
-          createdAt: DateTime.now(),
-          format: TemplateFormat.confluence,
-        );
-        
-        await _templatesBox.put(_defaultConfluenceKey, defaultTemplate);
-        
-        if (!_settingsBox.containsKey(_activeConfluenceKey)) {
-          await _settingsBox.put(_activeConfluenceKey, _defaultConfluenceKey);
-        }
-        
-        log('Default Confluence template created');
-      } catch (e) {
-        log('Error creating default Confluence template: $e');
+        log('Error creating unified default template: $e');
         rethrow;
       }
     }
@@ -121,57 +94,22 @@ class TemplateService extends ChangeNotifier {
     return _templatesBox.get(id);
   }
   
-  Future<Template?> getActiveTemplate(OutputFormat format) async {
+  Future<Template?> getActiveTemplate(OutputFormat format) async { // format ignored (kept for compatibility)
     try {
       if (!_initialized) await init();
-      
-      String activeKey, defaultKey;
-      TemplateFormat tf = _mapToTemplateFormat(format);
-      
-      switch (format) {
-        case OutputFormat.markdown:
-          activeKey = _activeMarkdownKey;
-          defaultKey = _defaultMarkdownKey;
-          break;
-        case OutputFormat.confluence:
-          activeKey = _activeConfluenceKey;
-          defaultKey = _defaultConfluenceKey;
-          break;
-      }
-      
-      final activeId = _settingsBox.get(activeKey);
-      Template? template;
-      if (activeId != null) {
-        template = _templatesBox.get(activeId);
-        if (template != null && template.format != tf) {
-          template = null;
-        }
-      }
-      
-      template ??= _templatesBox.get(defaultKey);
-      
-      return template;
+      final activeId = _settingsBox.get(_activeKey) ?? _defaultKey;
+      return _templatesBox.get(activeId) ?? _templatesBox.get(_defaultKey);
     } catch (e) {
-      log('Error getting active template for $format: $e');
+      log('Error getting active template: $e');
       return null;
     }
   }
   
   Template? get cachedActiveTemplate => null; // Заглушка для совместимости, но лучше использовать getActiveTemplate с форматом
   
-  Future<String?> getActiveTemplateId(OutputFormat format) async {
+  Future<String?> getActiveTemplateId(OutputFormat format) async { // format ignored
     if (!_initialized) await init();
-    
-    String activeKey;
-    switch (format) {
-      case OutputFormat.markdown:
-        activeKey = _activeMarkdownKey;
-        break;
-      case OutputFormat.confluence:
-        activeKey = _activeConfluenceKey;
-        break;
-    }
-    return _settingsBox.get(activeKey);
+    return _settingsBox.get(_activeKey) ?? _defaultKey;
   }
   
   Future<void> saveTemplate(Template template) async {
@@ -200,12 +138,9 @@ class TemplateService extends ChangeNotifier {
       throw ArgumentError('Cannot delete default template');
     }
     
-    // Если удаляемый шаблон активный для какого-то формата, переключаемся на дефолтный
-    if (_settingsBox.get(_activeMarkdownKey) == id) {
-      await _settingsBox.put(_activeMarkdownKey, _defaultMarkdownKey);
-    }
-    if (_settingsBox.get(_activeConfluenceKey) == id) {
-      await _settingsBox.put(_activeConfluenceKey, _defaultConfluenceKey);
+    // Если удаляемый шаблон активный, переключаемся на дефолтный
+    if (_settingsBox.get(_activeKey) == id) {
+      await _settingsBox.put(_activeKey, _defaultKey);
     }
     
     await _templatesBox.delete(id);
@@ -213,31 +148,15 @@ class TemplateService extends ChangeNotifier {
     log('Template deleted: ${template.name}');
   }
   
-  Future<void> setActiveTemplate(String id, OutputFormat format) async {
+  Future<void> setActiveTemplate(String id, OutputFormat format) async { // format ignored
     if (!_initialized) await init();
-    
     final template = _templatesBox.get(id);
     if (template == null) {
       throw ArgumentError('Template with id $id not found');
     }
-    
-    if (template.format != _mapToTemplateFormat(format)) {
-      throw ArgumentError('Template format does not match $format');
-    }
-    
-    String activeKey;
-    switch (format) {
-      case OutputFormat.markdown:
-        activeKey = _activeMarkdownKey;
-        break;
-      case OutputFormat.confluence:
-        activeKey = _activeConfluenceKey;
-        break;
-    }
-    
-    await _settingsBox.put(activeKey, id);
+    await _settingsBox.put(_activeKey, id);
     notifyListeners();
-    log('Active template set for $format: ${template.name}');
+    log('Active template set: ${template.name}');
   }
   
   Future<String> reviewTemplate(String content, AppConfig config, BuildContext context) async {
@@ -294,11 +213,14 @@ class TemplateService extends ChangeNotifier {
         final t = _templatesBox.get(key);
         // ignore: unnecessary_null_comparison
         if (t != null && t.format == null) { // Legacy without format
-          final inferred = t.content.contains('<html') || t.content.contains('<body') ?
-              TemplateFormat.confluence : TemplateFormat.markdown;
-          final migrated = t.copyWith(format: inferred);
+          final migrated = t.copyWith(format: TemplateFormat.markdown);
           await _templatesBox.put(key, migrated);
-          log('Migrated legacy template $key to $inferred');
+          log('Migrated legacy template $key to markdown');
+        } else if (t != null && t.format == TemplateFormat.confluence) {
+          // Normalize all to markdown
+            final migrated = t.copyWith(format: TemplateFormat.markdown);
+            await _templatesBox.put(key, migrated);
+            log('Normalized template $key (confluence->markdown)');
         }
       } catch (e) {
         log('Error migrating template $key: $e');
@@ -306,41 +228,44 @@ class TemplateService extends ChangeNotifier {
     }
   }
   
-  TemplateFormat _mapToTemplateFormat(OutputFormat format) {
-    switch (format) {
-      case OutputFormat.markdown:
-        return TemplateFormat.markdown;
-      case OutputFormat.confluence:
-        return TemplateFormat.confluence;
+  Future<void> _migrateLegacyKeys() async {
+    try {
+      // If unified active key already exists, nothing to do
+      if (_settingsBox.containsKey(_activeKey)) return;
+
+      // Prefer previously selected Markdown active template, else Confluence
+      final legacyMarkdown = _settingsBox.get(_legacyActiveMarkdownKey);
+      final legacyConfluence = _settingsBox.get(_legacyActiveConfluenceKey);
+      final chosen = legacyMarkdown ?? legacyConfluence ?? _defaultKey;
+      await _settingsBox.put(_activeKey, chosen);
+
+      // Ensure default template flag is only on unified default
+      final legacyDefaultConfluence = _templatesBox.get(_legacyDefaultConfluenceKey);
+      if (legacyDefaultConfluence != null && legacyDefaultConfluence.isDefault) {
+        final updated = legacyDefaultConfluence.copyWith(isDefault: false);
+        await _templatesBox.put(_legacyDefaultConfluenceKey, updated);
+      }
+
+      log('Migrated legacy active template keys to unified key ($_activeKey -> $chosen)');
+    } catch (e) {
+      log('Error migrating legacy template keys: $e');
     }
   }
   
-  Future<List<Template>> getTemplatesForFormat(OutputFormat format) async {
+  Future<List<Template>> getTemplatesForFormat(OutputFormat format) async { // format ignored
     if (!_initialized) await init();
-    
-    final all = await getAllTemplates();
-    final tf = _mapToTemplateFormat(format);
-    var filtered = all.where((t) => t.format == tf).toList();
-    
-    filtered.sort((a, b) {
-      if (a.isDefault && !b.isDefault) return -1;
-      if (!a.isDefault && b.isDefault) return 1;
-      return b.createdAt.compareTo(a.createdAt);
-    });
-    
-    return filtered;
+    return getAllTemplates();
   }
-  
-  Future<Template> createNewTemplate(OutputFormat format, {String name = 'Новый шаблон'}) async {
+
+  Future<Template> createNewTemplate(OutputFormat format, {String name = 'Новый шаблон'}) async { // format ignored
     final newId = generateNewTemplateId();
-    final tf = _mapToTemplateFormat(format);
     final newTemplate = Template(
       id: newId,
       name: name,
       content: '',
       isDefault: false,
       createdAt: DateTime.now(),
-      format: tf,
+      format: TemplateFormat.markdown,
     );
     await saveTemplate(newTemplate);
     return newTemplate;

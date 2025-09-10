@@ -6,7 +6,11 @@ import '../services/template_service.dart';
 import '../services/config_service.dart';
 import '../widgets/template_management/editable_template_selector.dart';
 import '../widgets/template_management/review_model_selector.dart';
-import '../widgets/template_management/template_review_dialog.dart';
+import '../services/template_review_controller.dart';
+import '../services/template_review_streaming_service.dart';
+import '../services/llm_service.dart';
+import '../widgets/template_management/template_fix_diff_view.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 class TemplateManagementScreen extends StatefulWidget {
   const TemplateManagementScreen({super.key});
@@ -18,12 +22,13 @@ class TemplateManagementScreen extends StatefulWidget {
 class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
+  final TemplateReviewController _reviewController = TemplateReviewController();
+  final ScrollController _reviewScroll = ScrollController();
+  final ScrollController _fixScroll = ScrollController();
   
   Template? _selectedTemplate;
   String? _selectedReviewModel;
-  bool _ignoreReview = false;
   bool _isLoading = false;
-  String? _reviewResult;
   bool _hasUnsavedChanges = false;
   
   @override
@@ -34,13 +39,29 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
       _loadActiveTemplate();
       _loadReviewModel();
     });
+  _reviewController.addListener(_autoScrollReview);
   }
   
   @override
   void dispose() {
     _nameController.dispose();
     _contentController.dispose();
+    _reviewScroll.dispose();
+    _fixScroll.dispose();
+    _reviewController.dispose();
     super.dispose();
+  }
+
+  void _autoScrollReview() {
+    if (!_reviewScroll.hasClients) return;
+    // Scroll only during active streaming (reviewing or fixing)
+    if (_reviewController.phase == TemplateReviewPhase.reviewing || _reviewController.phase == TemplateReviewPhase.fixing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_reviewScroll.hasClients) {
+          _reviewScroll.jumpTo(_reviewScroll.position.maxScrollExtent);
+        }
+      });
+    }
   }
   
   Future<void> _loadActiveTemplate() async {
@@ -86,8 +107,7 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
       _selectedTemplate = template;
       _nameController.text = template?.name ?? '';
       _contentController.text = template?.content ?? '';
-      _hasUnsavedChanges = false;
-      _reviewResult = null;
+  _hasUnsavedChanges = false;
     });
   }
   
@@ -95,7 +115,7 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
     if (!_hasUnsavedChanges) {
       setState(() {
         _hasUnsavedChanges = true;
-        _reviewResult = null; // Сбрасываем результат ревью при изменении
+  // ревью нужно провести заново при изменении контента
       });
     }
   }
@@ -105,40 +125,44 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
       _showError('Выберите модель для ревью');
       return;
     }
-    
-    final configService = Provider.of<ConfigService>(context, listen: false);
-    final templateService = Provider.of<TemplateService>(context, listen: false);
-    
-    try {
+    final content = _contentController.text.trim();
+    if (content.isEmpty) {
+      _showError('Контент шаблона не может быть пустым');
+      return;
+    }
+    final llmService = Provider.of<LLMService>(context, listen: false);
+    final streaming = TemplateReviewStreamingService(llmService: llmService);
+    final stream = streaming.streamReview(content: content, model: _selectedReviewModel);
+    _reviewController.startReview(stream: stream, currentContent: content);
+  // Результат ревью отображается через _reviewController.reviewText
+  }
+
+  void _startFix() {
+    if (_reviewController.phase != TemplateReviewPhase.reviewCompleted) return;
+    final reviewText = _reviewController.reviewText;
+    final content = _contentController.text;
+    final llmService = Provider.of<LLMService>(context, listen: false);
+    final streaming = TemplateReviewStreamingService(llmService: llmService);
+    final stream = streaming.streamFix(
+      original: content,
+      reviewText: reviewText,
+      model: _selectedReviewModel,
+    );
+    _reviewController.startFix(stream: stream, currentContent: content);
+  }
+
+  void _acceptFix() {
+    final newContent = _reviewController.acceptFix();
+    if (newContent != null) {
+      _contentController.text = newContent;
       setState(() {
-        _isLoading = true;
-      });
-      
-      final config = configService.config;
-      if (config == null) {
-        throw Exception('Конфигурация не найдена');
-      }
-      
-      final content = _contentController.text.trim();
-      if (content.isEmpty) {
-        throw Exception('Контент шаблона не может быть пустым');
-      }
-      
-      final reviewResult = await templateService.reviewTemplate(content, config, context);
-      
-      setState(() {
-        _reviewResult = reviewResult;
-      });
-      
-      _showReviewDialog(reviewResult);
-      
-    } catch (e) {
-      _showError('Ошибка при ревью шаблона: $e');
-    } finally {
-      setState(() {
-        _isLoading = false;
+        _hasUnsavedChanges = true; // content changed
       });
     }
+  }
+
+  void _rejectFix() {
+    _reviewController.rejectFix();
   }
   
   Future<void> _saveTemplate() async {
@@ -160,15 +184,9 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
         throw Exception('Контент шаблона не может быть пустым');
       }
       
-      // Проверяем, нужно ли ревью
-      if (!_ignoreReview && _reviewResult == null && !_selectedTemplate!.isDefault) {
-        _showError('Проведите ревью шаблона перед сохранением или включите "Игнорировать ревью"');
-        return;
-      }
-      
-      // Проверяем критические замечания
-      if (_reviewResult != null && _reviewResult!.contains('[CRITICAL_ALERT]') && !_ignoreReview) {
-        _showError('Шаблон содержит критические замечания. Исправьте их или включите "Игнорировать ревью"');
+      // Новый контроль: если критические и не игнорируем — блок
+      if (_reviewController.severity == TemplateReviewSeverity.critical && !_reviewController.ignoreCritical) {
+        _showError('Есть критические замечания — исправьте или включите "Игнорировать ревью"');
         return;
       }
       
@@ -217,7 +235,6 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
       _nameController.text = newTemplate.name;
       _contentController.text = newTemplate.content;
       _hasUnsavedChanges = false;
-      _reviewResult = null;
     });
   }
   
@@ -257,15 +274,7 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
     }
   }
   
-  void _showReviewDialog(String reviewResult) {
-    showDialog(
-      context: context,
-      builder: (context) => TemplateReviewDialog(
-        reviewResult: reviewResult,
-        hasCriticalIssues: reviewResult.contains('[CRITICAL_ALERT]'),
-      ),
-    );
-  }
+  // Legacy _showReviewDialog removed (streaming review now inline)
   
   void _showUnsavedChangesDialog(VoidCallback onProceed) {
     showDialog(
@@ -401,39 +410,191 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
                     ),
                     const SizedBox(height: 16),
                     
-                    // Поле контента - обернем в Flexible для безопасности
-                    Flexible(
-                      child: Container(
-                        constraints: const BoxConstraints(minHeight: 200),
-                        child: TextField(
-                          controller: _contentController,
-                          decoration: const InputDecoration(
-                            labelText: 'Контент шаблона',
-                            border: OutlineInputBorder(),
-                            alignLabelWithHint: true,
+                    // Контент + (при фиксе) панель фикса, затем ревью ниже
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Контент всегда слева, занимает всю ширину если нет фикса
+                                Expanded(
+                                  child: TextField(
+                                    controller: _contentController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Контент шаблона',
+                                      border: OutlineInputBorder(),
+                                      alignLabelWithHint: true,
+                                    ),
+                                    maxLines: null,
+                                    expands: true,
+                                    textAlignVertical: TextAlignVertical.top,
+                                    onChanged: (_) => _onContentChanged(),
+                                    readOnly: _reviewController.phase == TemplateReviewPhase.reviewing || _reviewController.phase == TemplateReviewPhase.fixing,
+                                  ),
+                                ),
+                                if (_reviewController.phase == TemplateReviewPhase.fixing || _reviewController.phase == TemplateReviewPhase.fixCompleted) ...[
+                                  const SizedBox(width: 16),
+                                  // Панель фикса
+                                  Expanded(
+                                    child: AnimatedBuilder(
+                                      animation: _reviewController,
+                                      builder: (context, _) {
+                                        Widget child;
+                                        if (_reviewController.phase == TemplateReviewPhase.fixing) {
+                                          child = Markdown(
+                                            data: _reviewController.fixBuffer ?? '*Генерация исправленного шаблона...*',
+                                            shrinkWrap: true,
+                                            physics: const NeverScrollableScrollPhysics(),
+                                          );
+                                        } else {
+                                          child = TemplateFixDiffView(
+                                            original: _reviewController.originalContentSnapshot,
+                                            fixed: _reviewController.fixBuffer ?? '',
+                                          );
+                                        }
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text('Режим исправления', style: Theme.of(context).textTheme.titleMedium),
+                                            const SizedBox(height: 8),
+                                            Expanded(
+                                              child: Container(
+                                                padding: const EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  border: Border.all(color: Colors.blueGrey),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Scrollbar(
+                                                  thumbVisibility: true,
+                                                  child: SingleChildScrollView(child: child),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                if (_reviewController.phase == TemplateReviewPhase.fixCompleted)
+                                                  ElevatedButton.icon(
+                                                    onPressed: _acceptFix,
+                                                    icon: const Icon(Icons.check),
+                                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                                                    label: const Text('Принять'),
+                                                  ),
+                                                if (_reviewController.phase == TemplateReviewPhase.fixCompleted) const SizedBox(width: 8),
+                                                if (_reviewController.phase == TemplateReviewPhase.fixCompleted)
+                                                  OutlinedButton.icon(
+                                                    onPressed: _rejectFix,
+                                                    icon: const Icon(Icons.close),
+                                                    label: const Text('Отклонить'),
+                                                  ),
+                                              ],
+                                            )
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
-                          maxLines: null,
-                          expands: true,
-                          textAlignVertical: TextAlignVertical.top,
-                          onChanged: (_) => _onContentChanged(),
-                        ),
+                          const SizedBox(height: 16),
+                          // Ревью (всегда внизу полноширинно)
+                          SizedBox(
+                            height: 260,
+                            child: AnimatedBuilder(
+                              animation: _reviewController,
+                              builder: (context, _) {
+                                Color borderColor;
+                                String statusText;
+                                switch (_reviewController.severity) {
+                                  case TemplateReviewSeverity.critical:
+                                    borderColor = Colors.red; statusText = 'Критические замечания'; break;
+                                  case TemplateReviewSeverity.minor:
+                                    borderColor = Colors.orange; statusText = 'Незначительные замечания'; break;
+                                  case TemplateReviewSeverity.ok:
+                                    borderColor = Colors.green; statusText = _reviewController.phase == TemplateReviewPhase.reviewing ? 'Ревью...' : 'Шаблон корректен'; break;
+                                }
+                                final showIgnore = _reviewController.severity == TemplateReviewSeverity.critical;
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(children: [
+                                      Text('Ревью шаблона', style: Theme.of(context).textTheme.titleMedium),
+                                      const SizedBox(width: 12),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: borderColor.withOpacity(0.1),
+                                          border: Border.all(color: borderColor),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Row(children: [
+                                          SizedBox(width: 10, height: 10, child: DecoratedBox(decoration: BoxDecoration(color: borderColor, shape: BoxShape.circle))),
+                                          const SizedBox(width: 6),
+                                          Text(statusText, style: TextStyle(color: borderColor, fontSize: 12)),
+                                        ]),
+                                      ),
+                                      const Spacer(),
+                                      if (_reviewController.phase == TemplateReviewPhase.reviewing)
+                                        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                                    ]),
+                                    const SizedBox(height: 6),
+                                    Row(children: [
+                                      Checkbox(
+                                        value: _reviewController.ignoreCritical,
+                                        onChanged: showIgnore ? (v) => _reviewController.setIgnoreCritical(v ?? false) : null,
+                                      ),
+                                      const Text('Игнорировать ревью'),
+                                      if (showIgnore) const SizedBox(width: 8),
+                                      if (showIgnore)
+                                        Icon(
+                                          _reviewController.canSave ? Icons.lock_open : Icons.lock,
+                                          size: 16,
+                                          color: _reviewController.canSave ? Colors.green : Colors.red,
+                                        )
+                                    ]),
+                                    Expanded(
+                                      child: Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: borderColor),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Scrollbar(
+                                          thumbVisibility: true,
+                                          child: SingleChildScrollView(
+                                            child: Markdown(
+                                              data: _reviewController.reviewText.isEmpty
+                                                  ? (_reviewController.phase == TemplateReviewPhase.reviewing ? '*Стриминг ответа...*' : '—')
+                                                  : _reviewController.reviewText,
+                                              shrinkWrap: true,
+                                              physics: const NeverScrollableScrollPhysics(),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    if (_reviewController.phase == TemplateReviewPhase.reviewCompleted && _reviewController.severity != TemplateReviewSeverity.ok)
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: ElevatedButton.icon(
+                                          onPressed: _startFix,
+                                          icon: const Icon(Icons.build),
+                                          label: const Text('Исправить'),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Переключатель игнорирования ревью
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _ignoreReview,
-                          onChanged: (value) {
-                            setState(() {
-                              _ignoreReview = value ?? false;
-                            });
-                          },
-                        ),
-                        const Text('Игнорировать ревью'),
-                      ],
                     ),
                     const SizedBox(height: 16),
                     
@@ -442,19 +603,17 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
                       children: [
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: _isLoading || _selectedReviewModel == null
+                            onPressed: _reviewController.phase == TemplateReviewPhase.reviewing || _selectedReviewModel == null
                                 ? null
                                 : _reviewTemplate,
                             icon: const Icon(Icons.rate_review),
-                            label: const Text('Ревью шаблона'),
+                            label: Text(_reviewController.phase == TemplateReviewPhase.reviewing ? 'Ревью...' : 'Ревью шаблона'),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: ElevatedButton.icon(
-                            onPressed: _isLoading || _selectedTemplate == null
-                                ? null
-                                : _saveTemplate,
+                            onPressed: _selectedTemplate == null || !_reviewController.canSave ? null : _saveTemplate,
                             icon: const Icon(Icons.save),
                             label: const Text('Сохранить'),
                             style: ElevatedButton.styleFrom(

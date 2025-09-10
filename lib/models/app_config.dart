@@ -58,11 +58,16 @@ class AppConfig {
     this.llmopsBaseUrl,
     this.llmopsModel,
     this.llmopsAuthHeader,
-    this.outputFormat = OutputFormat.markdown, // По умолчанию Markdown
+    OutputFormat? outputFormat, // Новый параметр (может быть null если используется legacy preferredFormat)
+    OutputFormat? preferredFormat, // Legacy алиас для совместимости с тестами
     this.confluenceConfig,
     this.cerebrasToken,
     this.groqToken,
-  });
+  }) : outputFormat = outputFormat ?? preferredFormat ?? OutputFormat.markdown; // Приоритет: новый параметр, затем legacy, затем значение по умолчанию
+
+  // Legacy геттер для обратной совместимости с существующими тестами/кодом
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  OutputFormat get preferredFormat => outputFormat;
   
   factory AppConfig.fromJson(Map<String, dynamic> json) => _$AppConfigFromJson(json);
   Map<String, dynamic> toJson() => _$AppConfigToJson(this);
