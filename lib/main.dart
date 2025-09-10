@@ -3,9 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/app_config.dart';
 import 'models/template.dart';
+import 'models/output_format.dart';
+import 'models/confluence_config.dart';
 import 'services/config_service.dart';
 import 'services/template_service.dart';
 import 'services/llm_service.dart';
+import 'services/confluence_service.dart';
 import 'screens/setup_screen.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
@@ -21,50 +24,65 @@ void main() async {
   // Hive.registerAdapter(LegacyAppConfigV2Adapter()); // typeId = 2 (промежуточная версия)
   Hive.registerAdapter(AppConfigAdapter()); // typeId = 10 (новая версия)
   Hive.registerAdapter(TemplateAdapter()); // typeId = 3
+  Hive.registerAdapter(OutputFormatAdapter()); // typeId = 11
+  Hive.registerAdapter(ConfluenceConfigAdapter()); // typeId = 12
   
-  runApp(MyApp());
+  // Предварительно открываем и инициализируем конфиг (ранняя загрузка перед UI)
+  final preConfigService = ConfigService();
+  try {
+    await preConfigService.init();
+  } catch (e) {
+    debugPrint('[main] ConfigService early init error: $e');
+  }
+  runApp(MyApp(preInitialized: preConfigService));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final ConfigService preInitialized;
+  const MyApp({super.key, required this.preInitialized});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ConfigService()),
+        ChangeNotifierProvider(create: (_) => preInitialized),
         ChangeNotifierProvider(create: (_) => TemplateService()),
         ChangeNotifierProvider(create: (_) => LLMService()),
+        ChangeNotifierProvider(create: (_) => ConfluenceService()),
       ],
-      child: MaterialApp(
-        title: 'TeeZeeNator',
-        theme: AppTheme.light,
-        home: FutureBuilder<bool>(
-          future: _initializeServices(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
-            
-            final hasConfig = snapshot.data ?? false;
-            return hasConfig ? const MainScreen() : const SetupScreen();
-          },
+      child: Builder(
+        builder: (innerContext) => MaterialApp(
+          title: 'TeeZeeNator',
+          theme: AppTheme.light,
+          home: FutureBuilder<bool>(
+            future: _initializeServices(innerContext),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final hasConfig = snapshot.data ?? false;
+              return hasConfig ? const MainScreen() : const SetupScreen();
+            },
+          ),
         ),
       ),
     );
   }
   
-  Future<bool> _initializeServices() async {
-    final configService = ConfigService();
-    final templateService = TemplateService();
-    
+  Future<bool> _initializeServices(BuildContext context) async {
     try {
-      // Инициализируем TemplateService
+      // Get service instances from Provider context
+      final configService = Provider.of<ConfigService>(context, listen: false);
+      final templateService = Provider.of<TemplateService>(context, listen: false);
+      // Ensure config is initialized (early preInit may already have done this)
+      await configService.init();
+      
+      // Initialize TemplateService
       await templateService.init();
       
-      // Проверяем конфигурацию
+      // Check configuration
       return await configService.hasValidConfiguration();
     } catch (e) {
       print('Error initializing services: $e');

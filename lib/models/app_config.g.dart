@@ -26,13 +26,17 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       llmopsBaseUrl: fields[6] as String?,
       llmopsModel: fields[7] as String?,
       llmopsAuthHeader: fields[8] as String?,
+      preferredFormat: fields[9] as OutputFormat,
+      confluenceConfig: fields[10] as ConfluenceConfig?,
+      cerebrasToken: fields[11] as String?,
+      groqToken: fields[12] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, AppConfig obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.apiUrl)
       ..writeByte(1)
@@ -50,7 +54,15 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       ..writeByte(7)
       ..write(obj.llmopsModel)
       ..writeByte(8)
-      ..write(obj.llmopsAuthHeader);
+      ..write(obj.llmopsAuthHeader)
+      ..writeByte(9)
+      ..write(obj.preferredFormat)
+      ..writeByte(10)
+      ..write(obj.confluenceConfig)
+      ..writeByte(11)
+      ..write(obj.cerebrasToken)
+      ..writeByte(12)
+      ..write(obj.groqToken);
   }
 
   @override
@@ -78,6 +90,13 @@ AppConfig _$AppConfigFromJson(Map<String, dynamic> json) => AppConfig(
       llmopsBaseUrl: json['llmopsBaseUrl'] as String?,
       llmopsModel: json['llmopsModel'] as String?,
       llmopsAuthHeader: json['llmopsAuthHeader'] as String?,
+      preferredFormat:
+          $enumDecodeNullable(_$OutputFormatEnumMap, json['preferredFormat']) ??
+              OutputFormat.markdown,
+      confluenceConfig: _confluenceConfigFromJson(
+          json['confluenceConfig'] as Map<String, dynamic>?),
+      cerebrasToken: json['cerebrasToken'] as String?,
+      groqToken: json['groqToken'] as String?,
     );
 
 Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
@@ -90,4 +109,13 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
       'llmopsBaseUrl': instance.llmopsBaseUrl,
       'llmopsModel': instance.llmopsModel,
       'llmopsAuthHeader': instance.llmopsAuthHeader,
+      'preferredFormat': _$OutputFormatEnumMap[instance.preferredFormat]!,
+      'confluenceConfig': _confluenceConfigToJson(instance.confluenceConfig),
+      'cerebrasToken': instance.cerebrasToken,
+      'groqToken': instance.groqToken,
     };
+
+const _$OutputFormatEnumMap = {
+  OutputFormat.markdown: 'markdown',
+  OutputFormat.confluence: 'confluence',
+};

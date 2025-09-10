@@ -1,5 +1,7 @@
 import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'output_format.dart';
+import 'confluence_config.dart';
 
 part 'app_config.g.dart';
 
@@ -32,6 +34,19 @@ class AppConfig {
   
   @HiveField(8)
   final String? llmopsAuthHeader; // Authorization header для LLMOps
+  
+  @HiveField(9)
+  final OutputFormat preferredFormat; // Предпочитаемый формат вывода
+  
+  @HiveField(10)
+  @JsonKey(toJson: _confluenceConfigToJson, fromJson: _confluenceConfigFromJson)
+  final ConfluenceConfig? confluenceConfig; // Конфигурация Confluence
+  
+  @HiveField(11)
+  final String? cerebrasToken; // API токен для Cerebras AI
+  
+  @HiveField(12)
+  final String? groqToken; // API токен для Groq
 
   AppConfig({
     required this.apiUrl,
@@ -43,6 +58,10 @@ class AppConfig {
     this.llmopsBaseUrl,
     this.llmopsModel,
     this.llmopsAuthHeader,
+    this.preferredFormat = OutputFormat.markdown, // По умолчанию Markdown
+    this.confluenceConfig,
+    this.cerebrasToken,
+    this.groqToken,
   });
   
   factory AppConfig.fromJson(Map<String, dynamic> json) => _$AppConfigFromJson(json);
@@ -60,6 +79,10 @@ class AppConfig {
       llmopsBaseUrl: map[6] as String?,
       llmopsModel: map[7] as String?,
       llmopsAuthHeader: map[8] as String?,
+      preferredFormat: map[9] as OutputFormat? ?? OutputFormat.markdown, // По умолчанию Markdown для старых конфигураций
+      confluenceConfig: map[10] as ConfluenceConfig?, // Confluence конфигурация для новых пользователей, null для существующих
+      cerebrasToken: map[11] as String?, // Cerebras AI токен
+      groqToken: map[12] as String?, // Groq токен
       // Игнорируем старое поле useConfluenceFormat - теперь всегда используем Confluence
     );
   }
@@ -74,6 +97,10 @@ class AppConfig {
     String? llmopsBaseUrl,
     String? llmopsModel,
     String? llmopsAuthHeader,
+    OutputFormat? preferredFormat,
+    Object? confluenceConfig = _sentinel,
+    String? cerebrasToken,
+    String? groqToken,
   }) {
     return AppConfig(
       apiUrl: apiUrl ?? this.apiUrl,
@@ -85,6 +112,24 @@ class AppConfig {
       llmopsBaseUrl: llmopsBaseUrl ?? this.llmopsBaseUrl,
       llmopsModel: llmopsModel ?? this.llmopsModel,
       llmopsAuthHeader: llmopsAuthHeader ?? this.llmopsAuthHeader,
+      preferredFormat: preferredFormat ?? this.preferredFormat,
+      confluenceConfig: confluenceConfig == _sentinel 
+          ? this.confluenceConfig 
+          : confluenceConfig as ConfluenceConfig?,
+      cerebrasToken: cerebrasToken ?? this.cerebrasToken,
+      groqToken: groqToken ?? this.groqToken,
     );
   }
+}
+
+// Sentinel object to distinguish between null and not provided
+const Object _sentinel = Object();
+
+// Helper functions for ConfluenceConfig JSON serialization
+Map<String, dynamic>? _confluenceConfigToJson(ConfluenceConfig? config) {
+  return config?.toJson();
+}
+
+ConfluenceConfig? _confluenceConfigFromJson(Map<String, dynamic>? json) {
+  return json != null ? ConfluenceConfig.fromJson(json) : null;
 }

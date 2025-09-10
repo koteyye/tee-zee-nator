@@ -55,7 +55,7 @@ class ModelSettingsCard extends StatelessWidget {
             style: const TextStyle(color: Colors.blue),
           ),
           const SizedBox(width: 16),
-          const Text('Провайдер: LLMOps', 
+          const Text('Провайдер: LocalLLM', 
             style: TextStyle(
               fontSize: 12,
               fontStyle: FontStyle.italic,
@@ -66,7 +66,21 @@ class ModelSettingsCard extends StatelessWidget {
       );
     }
     
-    // Для OpenAI провайдера показываем выбор модели
+    // Для OpenAI, Cerebras AI и Groq провайдеров показываем выбор модели
+    String providerDisplayName;
+    switch (configService.config?.provider) {
+      case 'cerebras':
+        providerDisplayName = 'Cerebras AI';
+        break;
+      case 'groq':
+        providerDisplayName = 'Groq';
+        break;
+      case 'openai':
+      default:
+        providerDisplayName = 'Open AI Competitive';
+        break;
+    }
+    
     return Row(
       children: [
         const Text('Модель: ', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -99,7 +113,15 @@ class ModelSettingsCard extends StatelessWidget {
                 ),
           ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 8),
+        Text('Провайдер: $providerDisplayName', 
+          style: const TextStyle(
+            fontSize: 12,
+            fontStyle: FontStyle.italic,
+            color: Colors.green,
+          ),
+        ),
+        const SizedBox(width: 8),
         // Кнопка обновления моделей
         if (configService.config != null)
           IconButton(
@@ -113,14 +135,7 @@ class ModelSettingsCard extends StatelessWidget {
             },
             tooltip: 'Обновить список моделей',
           ),
-        const SizedBox(width: 16),
-        const Text('Формат: Confluence HTML', 
-          style: TextStyle(
-            fontSize: 12,
-            fontStyle: FontStyle.italic,
-            color: Colors.blue,
-          ),
-        ),
+
       ],
     );
   }
@@ -158,4 +173,6 @@ class ModelSettingsCard extends StatelessWidget {
       ],
     );
   }
+
+
 }

@@ -101,6 +101,7 @@ class _EditableTemplateSelectorState extends State<EditableTemplateSelector> {
             return DropdownMenuItem<Template>(
               value: template,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   if (template.isDefault)
                     const Icon(
@@ -109,7 +110,7 @@ class _EditableTemplateSelectorState extends State<EditableTemplateSelector> {
                       color: Colors.amber,
                     ),
                   if (template.isDefault) const SizedBox(width: 4),
-                  Expanded(child: Text(template.name)),
+                  Flexible(child: Text(template.name, overflow: TextOverflow.ellipsis)),
                 ],
               ),
             );
