@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/template.dart';
+import '../models/output_format.dart';
 import '../services/template_service.dart';
 import '../services/config_service.dart';
 import '../widgets/template_management/editable_template_selector.dart';
@@ -44,8 +45,11 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
   
   Future<void> _loadActiveTemplate() async {
     final templateService = Provider.of<TemplateService>(context, listen: false);
+    final configService = Provider.of<ConfigService>(context, listen: false);
     try {
-      final activeTemplate = await templateService.getActiveTemplate();
+      final config = configService.config;
+      if (config == null) return;
+      final activeTemplate = await templateService.getActiveTemplate(config.outputFormat);
       if (activeTemplate != null) {
         setState(() {
           _selectedTemplate = activeTemplate;
@@ -200,17 +204,13 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
     }
   }
   
-  void _performCreateNewTemplate() {
+  Future<void> _performCreateNewTemplate() async {
     final templateService = Provider.of<TemplateService>(context, listen: false);
-    final newId = templateService.generateNewTemplateId();
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    final config = configService.config;
+    if (config == null) return;
     
-    final newTemplate = Template(
-      id: newId,
-      name: 'Новый шаблон',
-      content: '',
-      isDefault: false,
-      createdAt: DateTime.now(),
-    );
+    final newTemplate = await templateService.createNewTemplate(config.outputFormat);
     
     setState(() {
       _selectedTemplate = newTemplate;
@@ -368,9 +368,16 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: EditableTemplateSelector(
-                            selectedTemplate: _selectedTemplate,
-                            onTemplateSelected: _onTemplateSelected,
+                          child: Consumer<ConfigService>(
+                            builder: (context, configService, child) {
+                              final config = configService.config;
+                              final format = config?.outputFormat ?? OutputFormat.defaultFormat;
+                              return EditableTemplateSelector(
+                                selectedTemplate: _selectedTemplate,
+                                currentFormat: format,
+                                onTemplateSelected: _onTemplateSelected,
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(width: 8),

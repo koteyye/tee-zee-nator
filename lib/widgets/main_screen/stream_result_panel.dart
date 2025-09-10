@@ -202,7 +202,7 @@ class StreamResultPanel extends StatelessWidget {
       ),
       child: Consumer<ConfigService>(
         builder: (context, configService, child) {
-          final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+          final format = configService.config?.outputFormat ?? OutputFormat.markdown;
           if (format == OutputFormat.confluence) {
             return HtmlContentViewer(htmlContent: documentText);
           }

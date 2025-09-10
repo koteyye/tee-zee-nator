@@ -92,14 +92,14 @@ class ConfigService extends ChangeNotifier {
   /// Migrates existing configuration to include format preference if missing
   AppConfig _migrateConfigIfNeeded(AppConfig config) {
     // Check if the config already has a valid format preference
-    if (_isValidFormat(config.preferredFormat)) {
+    if (_isValidFormat(config.outputFormat)) {
       return config;
     }
     
     // Migration: set default format preference for existing configurations
     print('Migrating configuration: setting default format preference to Markdown');
     final migratedConfig = config.copyWith(
-      preferredFormat: OutputFormat.defaultFormat,
+      outputFormat: OutputFormat.defaultFormat,
     );
     
     // Save the migrated configuration
@@ -129,8 +129,8 @@ class ConfigService extends ChangeNotifier {
   
   /// Gets the preferred format with fallback to default
   OutputFormat getPreferredFormat() {
-    if (_config?.preferredFormat != null && _isValidFormat(_config!.preferredFormat)) {
-      return _config!.preferredFormat;
+    if (_config?.outputFormat != null && _isValidFormat(_config!.outputFormat)) {
+      return _config!.outputFormat;
     }
     return OutputFormat.defaultFormat;
   }
@@ -219,7 +219,7 @@ class ConfigService extends ChangeNotifier {
         // ВАЖНО: сохраняем токены провайдеров
         cerebrasToken: config.cerebrasToken,
         groqToken: config.groqToken,
-        preferredFormat: config.preferredFormat,
+        outputFormat: config.outputFormat,
         confluenceConfig: config.confluenceConfig,
       );
       
@@ -261,7 +261,7 @@ class ConfigService extends ChangeNotifier {
 
   Future<void> updatePreferredFormat(OutputFormat format) async {
     if (_config != null) {
-      final updatedConfig = _config!.copyWith(preferredFormat: format);
+      final updatedConfig = _config!.copyWith(outputFormat: format);
       await saveConfig(updatedConfig);
     }
   }
@@ -396,7 +396,7 @@ class ConfigService extends ChangeNotifier {
         apiUrl: '',
         apiToken: '',
         provider: 'openai',
-        preferredFormat: OutputFormat.markdown,
+        outputFormat: OutputFormat.markdown,
       );
       await saveConfig(_config!);
     }

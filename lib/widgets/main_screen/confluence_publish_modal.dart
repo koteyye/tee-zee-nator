@@ -297,7 +297,7 @@ class _ConfluencePublishModalState extends State<ConfluencePublishModal> {
     try {
       // Определяем, какой контент отправлять в зависимости от формата
       final configService = Provider.of<ConfigService>(context, listen: false);
-      final format = configService.config?.preferredFormat;
+      final format = configService.config?.outputFormat;
       String contentToPublish = widget.content;
       
       // Если формат Markdown, конвертируем в Confluence Storage Format

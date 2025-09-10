@@ -27,10 +27,10 @@ void main() {
         final config = AppConfig(
           apiUrl: 'https://api.openai.com/v1',
           apiToken: 'test-token',
-          preferredFormat: OutputFormat.confluence,
+          outputFormat: OutputFormat.confluence,
         );
 
-        expect(config.preferredFormat, equals(OutputFormat.confluence));
+        expect(config.outputFormat, equals(OutputFormat.confluence));
       });
     });
 
@@ -40,38 +40,38 @@ void main() {
         final oldConfig = AppConfig(
           apiUrl: 'https://api.openai.com/v1',
           apiToken: 'test-token',
-          // preferredFormat will default to OutputFormat.markdown
+          // outputFormat will default to OutputFormat.markdown
         );
 
         // Should default to markdown format
-        expect(oldConfig.preferredFormat, equals(OutputFormat.markdown));
-        expect(oldConfig.preferredFormat, equals(OutputFormat.defaultFormat));
+        expect(oldConfig.outputFormat, equals(OutputFormat.markdown));
+        expect(oldConfig.outputFormat, equals(OutputFormat.defaultFormat));
       });
 
       test('should preserve existing format preferences during migration', () {
         final configWithFormat = AppConfig(
           apiUrl: 'https://api.openai.com/v1',
           apiToken: 'test-token',
-          preferredFormat: OutputFormat.confluence,
+          outputFormat: OutputFormat.confluence,
         );
 
         // Should preserve the explicitly set format
-        expect(configWithFormat.preferredFormat, equals(OutputFormat.confluence));
+        expect(configWithFormat.outputFormat, equals(OutputFormat.confluence));
       });
 
       test('should handle format preference updates', () {
         final originalConfig = AppConfig(
           apiUrl: 'https://api.openai.com/v1',
           apiToken: 'test-token',
-          preferredFormat: OutputFormat.markdown,
+          outputFormat: OutputFormat.markdown,
         );
 
         final updatedConfig = originalConfig.copyWith(
-          preferredFormat: OutputFormat.confluence,
+          outputFormat: OutputFormat.confluence,
         );
 
-        expect(originalConfig.preferredFormat, equals(OutputFormat.markdown));
-        expect(updatedConfig.preferredFormat, equals(OutputFormat.confluence));
+        expect(originalConfig.outputFormat, equals(OutputFormat.markdown));
+        expect(updatedConfig.outputFormat, equals(OutputFormat.confluence));
         
         // Verify other fields remain unchanged
         expect(updatedConfig.apiUrl, equals(originalConfig.apiUrl));
@@ -88,11 +88,11 @@ void main() {
           provider: 'openai',
           defaultModel: 'gpt-4',
           reviewModel: 'gpt-4',
-          preferredFormat: OutputFormat.markdown,
+          outputFormat: OutputFormat.markdown,
         );
 
         expect(openAIConfig.provider, equals('openai'));
-        expect(openAIConfig.preferredFormat, equals(OutputFormat.markdown));
+        expect(openAIConfig.outputFormat, equals(OutputFormat.markdown));
 
         // Test LLMOps provider with format preference
         final llmopsConfig = AppConfig(
@@ -103,24 +103,24 @@ void main() {
           llmopsModel: 'llama2',
           defaultModel: 'llama2',
           reviewModel: 'llama2',
-          preferredFormat: OutputFormat.confluence,
+          outputFormat: OutputFormat.confluence,
         );
 
         expect(llmopsConfig.provider, equals('llmops'));
-        expect(llmopsConfig.preferredFormat, equals(OutputFormat.confluence));
+        expect(llmopsConfig.outputFormat, equals(OutputFormat.confluence));
       });
 
       test('should maintain format preference consistency', () {
         final config = AppConfig(
           apiUrl: 'https://api.openai.com/v1',
           apiToken: 'test-token',
-          preferredFormat: OutputFormat.confluence,
+          outputFormat: OutputFormat.confluence,
         );
 
         // Format should be consistent across operations
-        expect(config.preferredFormat, equals(OutputFormat.confluence));
-        expect(config.preferredFormat.displayName, equals('Confluence Storage Format'));
-        expect(config.preferredFormat.fileExtension, equals('html'));
+        expect(config.outputFormat, equals(OutputFormat.confluence));
+        expect(config.outputFormat.displayName, equals('Confluence Storage Format'));
+        expect(config.outputFormat.fileExtension, equals('html'));
       });
     });
 
@@ -129,13 +129,13 @@ void main() {
         final config = AppConfig(
           apiUrl: 'https://api.openai.com/v1',
           apiToken: 'test-token',
-          preferredFormat: OutputFormat.markdown,
+          outputFormat: OutputFormat.markdown,
         );
 
         final json = config.toJson();
         final deserializedConfig = AppConfig.fromJson(json);
 
-        expect(deserializedConfig.preferredFormat, equals(OutputFormat.markdown));
+        expect(deserializedConfig.outputFormat, equals(OutputFormat.markdown));
         expect(deserializedConfig.apiUrl, equals(config.apiUrl));
         expect(deserializedConfig.apiToken, equals(config.apiToken));
       });
@@ -148,7 +148,7 @@ void main() {
           // No explicit format - should default
         );
 
-        expect(config.preferredFormat, equals(OutputFormat.defaultFormat));
+        expect(config.outputFormat, equals(OutputFormat.defaultFormat));
       });
 
       test('should support all available format options', () {
@@ -156,12 +156,12 @@ void main() {
           final config = AppConfig(
             apiUrl: 'https://api.openai.com/v1',
             apiToken: 'test-token',
-            preferredFormat: format,
+            outputFormat: format,
           );
 
-          expect(config.preferredFormat, equals(format));
-          expect(config.preferredFormat.displayName, isNotEmpty);
-          expect(config.preferredFormat.fileExtension, isNotEmpty);
+          expect(config.outputFormat, equals(format));
+          expect(config.outputFormat.displayName, isNotEmpty);
+          expect(config.outputFormat.fileExtension, isNotEmpty);
         }
       });
     });
@@ -190,7 +190,7 @@ void main() {
         final baseConfig = AppConfig(
           apiUrl: 'https://api.openai.com/v1',
           apiToken: 'test-token',
-          preferredFormat: OutputFormat.markdown,
+          outputFormat: OutputFormat.markdown,
         );
         await configService.saveConfig(baseConfig);
       });
@@ -567,7 +567,7 @@ void main() {
           final updatedConfig = configService.config!;
           expect(updatedConfig.apiUrl, equals(originalConfig.apiUrl));
           expect(updatedConfig.apiToken, equals(originalConfig.apiToken));
-          expect(updatedConfig.preferredFormat, equals(originalConfig.preferredFormat));
+          expect(updatedConfig.outputFormat, equals(originalConfig.outputFormat));
           expect(updatedConfig.confluenceConfig, isNotNull);
         });
 
@@ -575,7 +575,7 @@ void main() {
           final baseConfig = AppConfig(
             apiUrl: 'https://api.openai.com/v1',
             apiToken: 'test-token',
-            preferredFormat: OutputFormat.markdown,
+            outputFormat: OutputFormat.markdown,
           );
 
           final confluenceConfig = ConfluenceConfig(

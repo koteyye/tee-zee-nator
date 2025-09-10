@@ -434,14 +434,6 @@ $templateContent
     }
     
     // Increased limit to account for processed Confluence content
-    if (rawRequirements.length > 15000) {
-      throw LLMResponseValidationException(
-        'Требования слишком длинные и могут превысить лимиты AI модели',
-        '',
-        recoveryAction: 'Сократите описание требований или количество ссылок на Confluence',
-        technicalDetails: 'Requirements too long: ${rawRequirements.length} characters (including processed Confluence content)',
-      );
-    }
     
     // Validate Confluence content markers are properly processed
     if (rawRequirements.contains('@conf-cnt') && rawRequirements.contains('@')) {
@@ -467,14 +459,6 @@ $templateContent
     
     // Validate template content if provided
     if (templateContent != null && templateContent.isNotEmpty) {
-      if (templateContent.length > 5000) {
-        throw LLMResponseValidationException(
-          'Шаблон слишком длинный и может превысить лимиты AI модели',
-          '',
-          recoveryAction: 'Сократите шаблон до 5000 символов',
-          technicalDetails: 'Template too long: ${templateContent.length} characters',
-        );
-      }
       
       // Format-specific template validation
       if (format == OutputFormat.markdown && templateContent.contains('<') && templateContent.contains('>')) {
@@ -672,12 +656,6 @@ $templateContent
       }
       
       // Validate content length to prevent token limit issues
-      if (content.length > 5000) {
-        debugPrint('Warning: Confluence content too long (${content.length} chars), truncating');
-        final truncatedContent = '${content.substring(0, 4900)}...\n[Содержимое обрезано из-за ограничений размера]';
-        processedText = processedText.replaceRange(match.start, match.end, truncatedContent);
-        continue;
-      }
       
       // Replace marker with processed content
       final processedContent = sanitizeConfluenceContent(content);

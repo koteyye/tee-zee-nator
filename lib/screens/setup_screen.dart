@@ -107,7 +107,7 @@ class _SetupScreenState extends State<SetupScreen> {
     if (config != null) {
       setState(() {
         _selectedProvider = config.provider;
-        _selectedFormat = config.preferredFormat;
+        _selectedFormat = config.outputFormat;
         if (_selectedProvider == 'openai') {
           _urlController.text = config.apiUrl;
           _tokenController.text = config.apiToken;
@@ -246,7 +246,7 @@ class _SetupScreenState extends State<SetupScreen> {
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
         selectedTemplateId: existingConfig?.selectedTemplateId,
-        preferredFormat: _selectedFormat,
+        outputFormat: _selectedFormat,
         confluenceConfig: existingConfig?.confluenceConfig,
       );
     } else if (_selectedProvider == 'cerebras') {
@@ -258,7 +258,7 @@ class _SetupScreenState extends State<SetupScreen> {
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
         selectedTemplateId: existingConfig?.selectedTemplateId,
-        preferredFormat: _selectedFormat,
+        outputFormat: _selectedFormat,
         confluenceConfig: existingConfig?.confluenceConfig,
       );
     } else if (_selectedProvider == 'groq') {
@@ -270,7 +270,7 @@ class _SetupScreenState extends State<SetupScreen> {
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
         selectedTemplateId: existingConfig?.selectedTemplateId,
-        preferredFormat: _selectedFormat,
+        outputFormat: _selectedFormat,
         confluenceConfig: existingConfig?.confluenceConfig,
       );
     } else {
@@ -287,7 +287,7 @@ class _SetupScreenState extends State<SetupScreen> {
         defaultModel: _selectedModel!.id,
         reviewModel: _selectedModel!.id,
         selectedTemplateId: existingConfig?.selectedTemplateId,
-        preferredFormat: _selectedFormat,
+        outputFormat: _selectedFormat,
         confluenceConfig: existingConfig?.confluenceConfig,
       );
     }

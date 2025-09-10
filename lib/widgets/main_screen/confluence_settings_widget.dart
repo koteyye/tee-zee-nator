@@ -132,7 +132,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
           provider: 'openai',
           defaultModel: 'gpt-3.5-turbo',
           reviewModel: 'gpt-3.5-turbo',
-          preferredFormat: OutputFormat.defaultFormat,
+          outputFormat: OutputFormat.defaultFormat,
           confluenceConfig: ConfluenceConfig(
             enabled: _isEnabled,
             baseUrl: _baseUrlController.text.trim(),

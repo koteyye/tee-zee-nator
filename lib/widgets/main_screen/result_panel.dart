@@ -77,7 +77,7 @@ class ResultPanel extends StatelessWidget {
                       const SizedBox(width: 8),
                       Consumer<ConfigService>(
                         builder: (context, configService, child) {
-                          final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+                          final format = configService.config?.outputFormat ?? OutputFormat.markdown;
                           final extension = format.fileExtension;
                           
                           return Semantics(
@@ -100,7 +100,7 @@ class ResultPanel extends StatelessWidget {
                       // Confluence publish button
                       Consumer<ConfigService>(
                         builder: (context, configService, child) {
-                          final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+                          final format = configService.config?.outputFormat ?? OutputFormat.markdown;
                           final isMarkdownMode = format == OutputFormat.markdown;
                           final isConfluenceEnabled = configService.isConfluenceEnabled();
                           final shouldShowButton = isConfluenceEnabled && isMarkdownMode;
@@ -184,7 +184,7 @@ class ResultPanel extends StatelessWidget {
       ),
       child: Consumer<ConfigService>(
         builder: (context, configService, child) {
-          final format = configService.config?.preferredFormat ?? OutputFormat.markdown;
+          final format = configService.config?.outputFormat ?? OutputFormat.markdown;
           
           if (format == OutputFormat.markdown) {
             return _buildMarkdownViewer();
