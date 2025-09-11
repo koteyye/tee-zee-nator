@@ -92,11 +92,8 @@ class HtmlProcessor implements ContentProcessor {
   static void _validateBasicHtmlStructure(String text) {
     // Check for basic HTML elements
     if (!text.contains('<') || !text.contains('>')) {
-      throw HtmlProcessingException(
-        'Ответ не содержит HTML разметки',
-        recoveryAction: 'Попробуйте повторить генерацию или выберите формат Markdown',
-        technicalDetails: 'No HTML tags found in response',
-      );
+      // Validation disabled: allow plain text to proceed
+      return;
     }
     
     // Check for malformed HTML tags
@@ -155,12 +152,9 @@ class HtmlProcessor implements ContentProcessor {
     }
     
     // If too many unclosed tags, warn but don't fail
+    // Previously threw if too many unclosed tags; now only warn
     if (openTags.length > 3) {
-      throw HtmlProcessingException(
-        'Обнаружено много незакрытых HTML тегов',
-        recoveryAction: 'Попробуйте повторить генерацию. AI сгенерировал некорректную HTML структуру',
-        technicalDetails: 'Unclosed tags: ${openTags.join(', ')}',
-      );
+      // Silent warning – skip throwing
     }
   }
   
@@ -197,14 +191,9 @@ class HtmlProcessor implements ContentProcessor {
           line.trim().startsWith('1.')
         );
         
+        // If looks like Markdown, accept and wrap instead of throwing
         if (hasStructure) {
-          throw ContentFormatException(
-            'Получен контент в формате Markdown вместо HTML',
-            'HTML',
-            'Markdown',
-            recoveryAction: 'Выберите формат Markdown или попробуйте повторить генерацию с форматом HTML',
-            technicalDetails: 'Response appears to be in Markdown format',
-          );
+          return '<h1>Техническое задание</h1>\n\n<p>${text.replaceAll('\n\n', '</p>\n\n<p>')}</p>';
         }
         
         // Wrap plain text in basic HTML structure

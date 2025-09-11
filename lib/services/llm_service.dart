@@ -601,13 +601,7 @@ $templateContent
         }
       }
       if (hasDisallowed) {
-        throw ContentFormatException(
-          'AI вернул HTML теги в ответе для формата Markdown',
-          'Markdown',
-          'HTML',
-          recoveryAction: 'Попробуйте повторить генерацию или выберите формат Confluence',
-          technicalDetails: 'Disallowed HTML tags found in Markdown response',
-        );
+        debugPrint('[LLMService:_validateMarkdownResponse] Disallowed HTML tags detected but validation disabled.');
       }
     }
   }
@@ -615,21 +609,11 @@ $templateContent
   /// Validates HTML-specific response format
   void _validateHtmlResponse(String response) {
     if (!response.contains('<') || !response.contains('>')) {
-      throw ContentFormatException(
-        'AI вернул ответ без HTML разметки для формата Confluence',
-        'HTML',
-        'Plain text',
-        recoveryAction: 'Попробуйте повторить генерацию или выберите формат Markdown',
-        technicalDetails: 'No HTML tags found in HTML response',
-      );
+      debugPrint('[LLMService:_validateHtmlResponse] Missing HTML tags but validation disabled.');
     }
     
     if (!response.toLowerCase().contains('<h1')) {
-      throw HtmlProcessingException(
-        'AI не включил заголовок H1 в HTML ответ',
-        recoveryAction: 'Попробуйте повторить генерацию. AI должен начинать с заголовка H1',
-        technicalDetails: 'No H1 tag found in HTML response',
-      );
+      debugPrint('[LLMService:_validateHtmlResponse] No H1 tag found (check disabled).');
     }
     
     // Check for Markdown syntax in HTML response
@@ -643,13 +627,7 @@ $templateContent
     
     for (final pattern in markdownPatterns) {
       if (pattern.hasMatch(response)) {
-        throw ContentFormatException(
-          'AI вернул Markdown синтаксис в ответе для формата HTML',
-          'HTML',
-          'Markdown',
-          recoveryAction: 'Попробуйте повторить генерацию или выберите формат Markdown',
-          technicalDetails: 'Markdown syntax found in HTML response',
-        );
+  debugPrint('[LLMService:_validateHtmlResponse] Markdown syntax in HTML output (check disabled).');
       }
     }
   }

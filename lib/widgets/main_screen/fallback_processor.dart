@@ -530,13 +530,8 @@ class FallbackProcessor implements ContentProcessor {
   String _validateHtmlContent(String content) {
     // Ensure basic HTML structure
     if (!content.contains('<') || !content.contains('>')) {
-      throw ContentFormatException(
-        'Контент не содержит HTML разметки',
-        'HTML',
-        'Plain text',
-        recoveryAction: 'Попробуйте выбрать формат Markdown или повторить генерацию',
-        technicalDetails: 'No HTML tags found in content',
-      );
+      // Allow plain text passthrough by converting to minimal HTML
+      return '<h1>Техническое задание</h1>\n\n<p>${content.replaceAll('\n\n', '</p>\n\n<p>')}</p>';
     }
     
     // Clean up common issues
