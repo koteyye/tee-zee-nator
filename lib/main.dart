@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'models/app_config.dart';
@@ -15,38 +16,61 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Инициализируем Hive
-  await Hive.initFlutter();
-  
-  // Регистрируем только новые адаптеры (legacy адаптеры временно отключены)
-  // Hive.registerAdapter(LegacyAppConfigAdapter()); // typeId = 1 (старая версия)
-  // Hive.registerAdapter(LegacyAppConfigV2Adapter()); // typeId = 2 (промежуточная версия)
-  Hive.registerAdapter(AppConfigAdapter()); // typeId = 10 (новая версия)
-  Hive.registerAdapter(TemplateAdapter()); // typeId = 3
-  Hive.registerAdapter(OutputFormatAdapter()); // typeId = 11
-  Hive.registerAdapter(ConfluenceConfigAdapter()); // typeId = 12
-  Hive.registerAdapter(TemplateFormatAdapter()); // typeId = 13
-  
-  // Предварительно открываем и инициализируем конфиг (ранняя загрузка перед UI)
-  final preConfigService = ConfigService();
-  try {
-    await preConfigService.init();
-  } catch (e) {
-    debugPrint('[main] ConfigService early init error: $e');
-  }
-  runApp(MyApp(preInitialized: preConfigService));
+
+  // Глобальная обработка ошибок, чтобы не оставлять «черный экран» без логов на desktop
+  FlutterError.onError = (details) {
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+    debugPrint(details.stack?.toString());
+  };
+
+  // Инициализация в защищенной зоне — любые необработанные исключения логируем
+  runZonedGuarded(() async {
+    try {
+      await Hive.initFlutter();
+    } catch (e, st) {
+      debugPrint('[main] Hive.initFlutter error: $e');
+      debugPrint(st.toString());
+    }
+
+    // Регистрируем адаптеры (повторная регистрация безопасно упадёт — ловим и игнорируем)
+    void safeRegister(TypeAdapter adapter, String name) {
+      try {
+        Hive.registerAdapter(adapter);
+      } catch (e) {
+        debugPrint('[main] Adapter $name register skipped: $e');
+      }
+    }
+    safeRegister(AppConfigAdapter(), 'AppConfigAdapter');
+    safeRegister(TemplateAdapter(), 'TemplateAdapter');
+    safeRegister(OutputFormatAdapter(), 'OutputFormatAdapter');
+    safeRegister(ConfluenceConfigAdapter(), 'ConfluenceConfigAdapter');
+    safeRegister(TemplateFormatAdapter(), 'TemplateFormatAdapter');
+
+    // НЕ блокируем первый кадр await-ом init(). Инициализация пройдет уже внутри FutureBuilder.
+    final preConfigService = ConfigService();
+    runApp(MyApp(preInitialized: preConfigService));
+  }, (error, stack) {
+    debugPrint('[ZoneError] $error');
+    debugPrint(stack.toString());
+  });
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   final ConfigService preInitialized;
   const MyApp({super.key, required this.preInitialized});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  int _reloadToken = 0; // меняем для перезапуска FutureBuilder
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => preInitialized),
+        ChangeNotifierProvider(create: (_) => widget.preInitialized),
         ChangeNotifierProvider(create: (_) => TemplateService()),
         ChangeNotifierProvider(create: (_) => LLMService()),
         ChangeNotifierProvider(create: (_) => ConfluenceService()),
@@ -56,11 +80,55 @@ class MyApp extends StatelessWidget {
           title: 'TeeZeeNator',
           theme: AppTheme.light,
           home: FutureBuilder<bool>(
-            future: _initializeServices(innerContext),
+            key: ValueKey(_reloadToken),
+            // Первая инициализация сервисов с таймаутом, чтобы не зависнуть навсегда при проблемах с файловой системой / Hive
+            future: _initializeServices(innerContext)
+                .timeout(const Duration(seconds: 8), onTimeout: () {
+              debugPrint('[MyApp] _initializeServices timeout — fallback to SetupScreen');
+              return false; // Покажем экран настройки как безопасный fallback
+            }),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
+                  body: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Инициализация...')
+                      ],
+                    ),
+                  ),
+                );
+              }
+              if (snapshot.hasError) {
+                debugPrint('[MyApp] init error: ${snapshot.error}');
+                return Scaffold(
+                  body: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        const SizedBox(height: 12),
+                        const Text('Проблема инициализации'),
+                        Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: Text(
+                            snapshot.error.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() { _reloadToken++; }); // Перезапустить FutureBuilder
+                          },
+                          child: const Text('Повторить'),
+                        )
+                      ],
+                    ),
+                  ),
                 );
               }
               final hasConfig = snapshot.data ?? false;
