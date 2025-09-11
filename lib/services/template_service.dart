@@ -26,8 +26,8 @@ class TemplateService extends ChangeNotifier {
   
   Future<void> init() async {
     try {
-      _templatesBox = await Hive.openBox<Template>('templates');
-      _settingsBox = await Hive.openBox<String>('template_settings');
+  _templatesBox = await Hive.openBox<Template>('templates');
+  _settingsBox = await Hive.openBox<String>('template_settings');
       
   // Ensure unified default template exists
   await _ensureUnifiedDefaultTemplate();
@@ -41,7 +41,38 @@ class TemplateService extends ChangeNotifier {
       log('TemplateService initialized successfully');
     } catch (e) {
       log('Error initializing TemplateService: $e');
+      final es = e.toString();
+      final suspectFormat = es.contains('TemplateFormat') || es.contains("Null' is not a subtype") || es.contains('type cast');
+      if (suspectFormat) {
+        final recovered = await _attemptRecoveryFromCorruption();
+        if (recovered) {
+          _initialized = true;
+          notifyListeners();
+          log('TemplateService recovered after corruption and reinitialized');
+          return;
+        }
+      }
       rethrow;
+    }
+  }
+
+  Future<bool> _attemptRecoveryFromCorruption() async {
+    try {
+      log('Attempting templates box recovery: closing & deleting corrupted box');
+      const boxName = 'templates';
+      if (Hive.isBoxOpen(boxName)) {
+        await Hive.box(boxName).close();
+      }
+      try { await Hive.deleteBoxFromDisk(boxName); } catch (_) {}
+      _templatesBox = await Hive.openBox<Template>(boxName);
+      _settingsBox = await Hive.openBox<String>('template_settings');
+      await _ensureUnifiedDefaultTemplate();
+      await _migrateLegacyTemplates();
+      await _migrateLegacyKeys();
+      return true;
+    } catch (e) {
+      log('Recovery attempt failed: $e');
+      return false;
     }
   }
   
