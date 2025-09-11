@@ -17,6 +17,7 @@ class ConfigService extends ChangeNotifier {
   AppConfig? _config;
   Box<AppConfig>? _box;
   bool _initialized = false;
+  bool _useFileFallback = false; // macOS fallback when Hive serialization is broken
   
   AppConfig? get config => _config;
   
@@ -25,6 +26,17 @@ class ConfigService extends ChangeNotifier {
       return; // Уже инициализировано
     }
     try {
+      if (_useFileFallback) {
+        // Уже в режиме fallback – просто пробуем восстановить из файла
+        try {
+          final restored = await _tryRestoreFromBackup();
+          _config = restored;
+        } catch (e) {
+          debugPrint('[ConfigService:init:fallback] restore failed: $e');
+        }
+        _initialized = true;
+        return;
+      }
       // Открываем новый бокс
       _box = await Hive.openBox<AppConfig>(_boxName);
       if (kDebugMode) {
@@ -76,6 +88,19 @@ class ConfigService extends ChangeNotifier {
       
     } catch (e) {
       print('Ошибка при инициализации ConfigService: $e');
+      // Если это macOS и проблема потенциально связана с адаптером, уходим в файловый fallback
+      if (e.toString().contains("OutputFormat") || e.toString().contains('AppConfig')) {
+        debugPrint('[ConfigService:init] Switching to file fallback storage');
+        _useFileFallback = true;
+        try {
+          final restored = await _tryRestoreFromBackup();
+          _config = restored;
+        } catch (e2) {
+          debugPrint('[ConfigService:init] Fallback restore failed: $e2');
+        }
+        _initialized = true;
+        return;
+      }
       // Если что-то пошло не так, очищаем все и создаем чистый бокс
       try {
         await _cleanupAllBoxes();
@@ -204,6 +229,12 @@ class ConfigService extends ChangeNotifier {
     }
     
     try {
+      if (_useFileFallback) {
+        _config = config;
+        await _writeBackup(config); // используем backup как основной storage
+        notifyListeners();
+        return;
+      }
       // Убеждаемся, что сохраняем именно новый тип AppConfig с typeId=4
       // Создаем новый экземпляр для гарантии правильного типа
       final newConfig = AppConfig(
@@ -237,6 +268,19 @@ class ConfigService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('Ошибка при сохранении конфига: $e');
+      if (e.toString().contains("OutputFormat") || e.toString().contains('AppConfig')) {
+        // Активируем fallback режим и повторяем сохранение в файл
+        debugPrint('[ConfigService:saveConfig] Activating file fallback due to type mismatch');
+        _useFileFallback = true;
+        try {
+          _config = config;
+          await _writeBackup(config);
+          notifyListeners();
+          return;
+        } catch (e2) {
+          debugPrint('[ConfigService:saveConfig] Fallback save failed: $e2');
+        }
+      }
       // Если ошибка связана с legacy адаптером, делаем полную очистку
       if (e.toString().contains('read-only') || e.toString().contains('Legacy')) {
         print('Обнаружена проблема с legacy адаптером, выполняем полную очистку...');
