@@ -15,8 +15,6 @@ import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
   // Глобальная обработка ошибок, чтобы не оставлять «черный экран» без логов на desktop
   FlutterError.onError = (details) {
     debugPrint('[FlutterError] ${details.exceptionAsString()}');
@@ -25,6 +23,8 @@ void main() async {
 
   // Инициализация в защищенной зоне — любые необработанные исключения логируем
   runZonedGuarded(() async {
+  // Перенесено внутрь зоны, чтобы избежать предупреждения Zone mismatch
+  WidgetsFlutterBinding.ensureInitialized();
     try {
       await Hive.initFlutter();
     } catch (e, st) {
@@ -32,19 +32,21 @@ void main() async {
       debugPrint(st.toString());
     }
 
-    // Регистрируем адаптеры (повторная регистрация безопасно упадёт — ловим и игнорируем)
-    void safeRegister(TypeAdapter adapter, String name) {
+  // (Dev wipe removed) — данные Hive больше не очищаются принудительно при старте
+
+    // Регистрируем адаптеры с сохранением generic-типа (иначе Hive регистрирует для dynamic и ломается маппинг типов)
+    void safeRegister<T>(TypeAdapter<T> adapter, String name) {
       try {
-        Hive.registerAdapter(adapter);
+        Hive.registerAdapter<T>(adapter);
       } catch (e) {
         debugPrint('[main] Adapter $name register skipped: $e');
       }
     }
-    safeRegister(AppConfigAdapter(), 'AppConfigAdapter');
-    safeRegister(TemplateAdapter(), 'TemplateAdapter');
-    safeRegister(OutputFormatAdapter(), 'OutputFormatAdapter');
-    safeRegister(ConfluenceConfigAdapter(), 'ConfluenceConfigAdapter');
-    safeRegister(TemplateFormatAdapter(), 'TemplateFormatAdapter');
+    safeRegister<AppConfig>(AppConfigAdapter(), 'AppConfigAdapter');
+    safeRegister<Template>(TemplateAdapter(), 'TemplateAdapter');
+    safeRegister<OutputFormat>(OutputFormatAdapter(), 'OutputFormatAdapter');
+    safeRegister<ConfluenceConfig>(ConfluenceConfigAdapter(), 'ConfluenceConfigAdapter');
+    safeRegister<TemplateFormat>(TemplateFormatAdapter(), 'TemplateFormatAdapter');
 
     // НЕ блокируем первый кадр await-ом init(). Инициализация пройдет уже внутри FutureBuilder.
     final preConfigService = ConfigService();

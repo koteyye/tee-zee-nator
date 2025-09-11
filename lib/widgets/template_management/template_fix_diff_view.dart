@@ -4,7 +4,8 @@ import '../../utils/line_diff.dart';
 class TemplateFixDiffView extends StatelessWidget {
   final String original;
   final String fixed;
-  const TemplateFixDiffView({super.key, required this.original, required this.fixed});
+  final ScrollController? controller;
+  const TemplateFixDiffView({super.key, required this.original, required this.fixed, this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -16,9 +17,11 @@ class TemplateFixDiffView extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Scrollbar(
+        controller: controller,
         thumbVisibility: true,
         child: ListView.builder(
-          padding: const EdgeInsets.symmetric(vertical: 4),
+            controller: controller,
+            padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: diff.length,
             itemBuilder: (context, index) {
               final seg = diff[index];

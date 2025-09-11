@@ -190,18 +190,34 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
         return;
       }
       
-      final updatedTemplate = _selectedTemplate!.copyWith(
-        name: name,
-        content: content,
-        updatedAt: DateTime.now(),
-      );
-      
-      await templateService.saveTemplate(updatedTemplate);
-      
-      setState(() {
-        _hasUnsavedChanges = false;
-        _selectedTemplate = updatedTemplate;
-      });
+      if (_selectedTemplate == null) {
+        // Создаем новый пользовательский шаблон
+        final newId = 'user_${DateTime.now().millisecondsSinceEpoch}';
+        final newTemplate = Template(
+          id: newId,
+          name: name,
+          content: content,
+          isDefault: false,
+          createdAt: DateTime.now(),
+          format: TemplateFormat.markdown,
+        );
+        await templateService.saveTemplate(newTemplate);
+        setState(() {
+          _selectedTemplate = newTemplate;
+          _hasUnsavedChanges = false;
+        });
+      } else {
+        final updatedTemplate = _selectedTemplate!.copyWith(
+          name: name,
+          content: content,
+          updatedAt: DateTime.now(),
+        );
+        await templateService.saveTemplate(updatedTemplate);
+        setState(() {
+          _hasUnsavedChanges = false;
+          _selectedTemplate = updatedTemplate;
+        });
+      }
       
       _showSuccess('Шаблон сохранен успешно');
       
@@ -234,7 +250,7 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
       _selectedTemplate = newTemplate;
       _nameController.text = newTemplate.name;
       _contentController.text = newTemplate.content;
-      _hasUnsavedChanges = false;
+      _hasUnsavedChanges = true; // чтобы подчеркнуть необходимость сохранения после ввода
     });
   }
   
@@ -467,8 +483,13 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
                                                   borderRadius: BorderRadius.circular(8),
                                                 ),
                                                 child: Scrollbar(
+                                                  controller: _fixScroll,
                                                   thumbVisibility: true,
-                                                  child: SingleChildScrollView(child: child),
+                                                  child: SingleChildScrollView(
+                                                    controller: _fixScroll,
+                                                    primary: false,
+                                                    child: child,
+                                                  ),
                                                 ),
                                               ),
                                             ),
@@ -565,8 +586,11 @@ class _TemplateManagementScreenState extends State<TemplateManagementScreen> {
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Scrollbar(
+                                          controller: _reviewScroll,
                                           thumbVisibility: true,
                                           child: SingleChildScrollView(
+                                            controller: _reviewScroll,
+                                            primary: false,
                                             child: Markdown(
                                               data: _reviewController.reviewText.isEmpty
                                                   ? (_reviewController.phase == TemplateReviewPhase.reviewing ? '*Стриминг ответа...*' : '—')

@@ -47,25 +47,67 @@ class TemplateService extends ChangeNotifier {
   
   
   Future<void> _ensureUnifiedDefaultTemplate() async {
+    // Helper to try loading from multiple candidate asset names
+    Future<String?> _tryLoadDefaultAsset() async {
+      const candidates = ['tz_pattern.md', 'pattern.md'];
+      for (final path in candidates) {
+        try {
+          log('Attempting to load default template asset: $path');
+          final content = await rootBundle.loadString(path);
+          if (content.trim().isNotEmpty) {
+            return content;
+          }
+        } catch (e) {
+          log('Asset not found or failed to load: $path ($e)');
+        }
+      }
+      return null;
+    }
+
     if (!_templatesBox.containsKey(_defaultKey)) {
-      try {
-        final defaultContent = await rootBundle.loadString('tz_pattern.md');
+      final content = await _tryLoadDefaultAsset();
+      if (content != null) {
         final defaultTemplate = Template(
           id: _defaultKey,
           name: 'Шаблон по умолчанию',
-          content: defaultContent,
+          content: content,
           isDefault: true,
           createdAt: DateTime.now(),
           format: TemplateFormat.markdown,
         );
         await _templatesBox.put(_defaultKey, defaultTemplate);
-        if (!_settingsBox.containsKey(_activeKey)) {
-          await _settingsBox.put(_activeKey, _defaultKey);
+        log('Unified default template created successfully from asset');
+      } else {
+        log('No default asset available, creating placeholder default template');
+        final placeholder = Template(
+          id: _defaultKey,
+          name: 'Шаблон по умолчанию (placeholder)',
+          content: '# Техническое задание\n\n(Добавьте содержимое – исходный шаблон не найден в сборке)',
+          isDefault: true,
+          createdAt: DateTime.now(),
+          format: TemplateFormat.markdown,
+        );
+        await _templatesBox.put(_defaultKey, placeholder);
+      }
+      if (!_settingsBox.containsKey(_activeKey)) {
+        await _settingsBox.put(_activeKey, _defaultKey);
+      }
+    } else {
+      // Upgrade existing placeholder if real asset is now present
+      final existing = _templatesBox.get(_defaultKey);
+      if (existing != null) {
+        final looksPlaceholder = existing.content.contains('исходный шаблон не найден') || existing.content.trim().length < 120;
+        if (looksPlaceholder) {
+          final content = await _tryLoadDefaultAsset();
+          if (content != null && content.trim().length > existing.content.trim().length) {
+            log('Upgrading placeholder default template with real asset content');
+            final upgraded = existing.copyWith(content: content, updatedAt: DateTime.now());
+            await _templatesBox.put(_defaultKey, upgraded);
+          }
         }
-        log('Unified default template created');
-      } catch (e) {
-        log('Error creating unified default template: $e');
-        rethrow;
+      }
+      if (!_settingsBox.containsKey(_activeKey)) {
+        await _settingsBox.put(_activeKey, _defaultKey);
       }
     }
   }
@@ -73,8 +115,7 @@ class TemplateService extends ChangeNotifier {
   Future<List<Template>> getAllTemplates() async {
     try {
       if (!_initialized) await init();
-      
-      final templates = _templatesBox.values.toList();
+  final templates = _templatesBox.values.toList();
       // Сортируем: дефолтный шаблон первый, остальные по дате создания
       templates.sort((a, b) {
         if (a.isDefault && !b.isDefault) return -1;

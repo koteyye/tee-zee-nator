@@ -53,6 +53,26 @@ class ConfigService extends ChangeNotifier {
           _config = _migrateConfigIfNeeded(_config!);
         }
       } catch (e) {
+        // Если типовое несоответствие (Template / OutputFormat), пытаемся санировать бокс
+        final es = e.toString();
+        final suspectTypeMismatch = es.contains('Template') || es.contains('OutputFormat') || es.contains('is not a subtype of type \'AppConfig\'');
+        if (suspectTypeMismatch) {
+          print('[ConfigService:init] Detected type mismatch in box ($_boxName): $e');
+          final sanitized = await _sanitizeCorruptedConfigBox();
+          print('[ConfigService:init] Sanitization result: sanitized=$sanitized');
+          // Переоткрываем после очистки
+          await _box!.close();
+          _box = await Hive.openBox<AppConfig>(_boxName);
+          try {
+            final stored2 = _box!.get(_configKey);
+            if (stored2 != null) {
+              _config = _migrateConfigIfNeeded(stored2);
+              print('[ConfigService:init] Config recovered after sanitization');
+            }
+          } catch (e2) {
+            print('[ConfigService:init] Still failing after sanitization: $e2');
+          }
+        } else {
         // НЕ удаляем данные автоматически – избегаем потери настроек
         print('[ConfigService:init] Ошибка при чтении конфига (сохраняем данные для диагностики): $e');
         // Пробуем сразу восстановить из резервной копии
@@ -68,6 +88,7 @@ class ConfigService extends ChangeNotifier {
           print('[ConfigService:init] Не удалось восстановить из backup после ошибки чтения: $e2');
         }
         _config = null; // Оставляем как неинициализированный, пользователь сможет пересохранить
+        }
       }
       
       // Если конфигурации нет, оставляем как есть (не мигрируем из legacy, поскольку отключили legacy адаптеры)
@@ -112,6 +133,31 @@ class ConfigService extends ChangeNotifier {
       }
     }
     _initialized = true;
+  }
+
+  // Удаляет битые или ошибочно записанные значения (Template, OutputFormat, др.) из коробки конфига
+  Future<bool> _sanitizeCorruptedConfigBox() async {
+    try {
+      // Открываем бокс в динамическом виде для доступа к "сырым" значениям
+      final dynamicBox = await Hive.openBox(_boxName);
+      final keys = dynamicBox.keys.toList();
+      bool removed = false;
+      for (final k in keys) {
+        final v = dynamicBox.get(k);
+        if (v is! AppConfig) {
+          // Удаляем любые значения не являющиеся AppConfig
+            await dynamicBox.delete(k);
+            removed = true;
+            print('[ConfigService:sanitize] Removed non-AppConfig entry key=$k type=${v.runtimeType}');
+        }
+      }
+      await dynamicBox.flush();
+      await dynamicBox.close();
+      return removed;
+    } catch (e) {
+      print('[ConfigService:sanitize] Failed: $e');
+      return false;
+    }
   }
   
   /// Migrates existing configuration to include format preference if missing
