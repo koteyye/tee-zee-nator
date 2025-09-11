@@ -20,6 +20,18 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
   String? _error;
   
   OpenAIProvider(this._config);
+
+  // Returns normalized base URL (no trailing slash, protocol + host/path as given)
+  String get _baseUrl {
+    var url = _config.apiUrl.trim();
+    if (url.endsWith('/')) url = url.substring(0, url.length - 1);
+    return url;
+  }
+
+  String _endpoint(String path) {
+    if (path.startsWith('/')) path = path.substring(1);
+    return '$_baseUrl/$path';
+  }
   
   // Инициализируем таймауты (во избежание вечной загрузки моделей при сетевых проблемах)
   void _ensureTimeouts() {
@@ -53,7 +65,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
       _error = null;
       
       final response = await _dio.get(
-        '${_config.apiUrl}/models',
+        _endpoint('models'),
         options: Options(
           headers: {
             'Authorization': 'Bearer ${_config.apiToken}',
@@ -85,7 +97,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
       _error = null;
       
       final response = await _dio.get(
-        '${_config.apiUrl}/models',
+        _endpoint('models'),
         options: Options(
           headers: {
             'Authorization': 'Bearer ${_config.apiToken}',
@@ -134,7 +146,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
       );
       
       final response = await _dio.post(
-        '${_config.apiUrl}/chat/completions',
+        _endpoint('chat/completions'),
         data: request.toJson(),
         options: Options(
           headers: {
@@ -186,19 +198,77 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
     };
 
     Response<ResponseBody> response;
-    try {
-      response = await _dio.post<ResponseBody>(
-        '${_config.apiUrl}/chat/completions',
+    Future<Response<ResponseBody>> _doStreamCall(String path) {
+      return _dio.post<ResponseBody>(
+        _endpoint(path),
         data: jsonEncode(requestMap),
         options: Options(
           headers: {
             'Authorization': 'Bearer ${_config.apiToken}',
             'Content-Type': 'application/json',
+            // Helps some reverse proxies / compatible servers route SSE properly
+            'Accept': 'text/event-stream',
+            'Cache-Control': 'no-cache',
           },
           responseType: ResponseType.stream,
         ),
         cancelToken: cancelToken,
       );
+    }
+    try {
+      response = await _doStreamCall('chat/completions');
+    } on DioException catch (e) {
+      // Retry heuristics for 404 (common with mis-specified base URL or missing /v1)
+      final status = e.response?.statusCode;
+      if (status == 404) {
+        // Heuristic 1: If base URL already ends with /v1, try without /v1 (some gateways duplicate it)
+        if (_baseUrl.endsWith('/v1')) {
+          final alt = _baseUrl.substring(0, _baseUrl.length - 3); // remove '/v1'
+          try {
+            response = await _dio.post<ResponseBody>(
+              '$alt/chat/completions',
+              data: jsonEncode(requestMap),
+              options: Options(
+                headers: {
+                  'Authorization': 'Bearer ${_config.apiToken}',
+                  'Content-Type': 'application/json',
+                  'Accept': 'text/event-stream',
+                  'Cache-Control': 'no-cache',
+                },
+                responseType: ResponseType.stream,
+              ),
+              cancelToken: cancelToken,
+            );
+          } catch (e2) {
+            yield LLMStreamChunkError('HTTP 404 streaming (alt base) : $e2');
+            return;
+          }
+        } else {
+          // Heuristic 2: If base missing /v1, try adding it
+            try {
+              response = await _dio.post<ResponseBody>(
+                '${_baseUrl}/v1/chat/completions',
+                data: jsonEncode(requestMap),
+                options: Options(
+                  headers: {
+                    'Authorization': 'Bearer ${_config.apiToken}',
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                  },
+                  responseType: ResponseType.stream,
+                ),
+                cancelToken: cancelToken,
+              );
+            } catch (e3) {
+              yield LLMStreamChunkError('HTTP 404 streaming (v1 retry) : $e3');
+              return;
+            }
+        }
+      } else {
+        yield LLMStreamChunkError('HTTP error initiating stream: $e');
+        return;
+      }
     } catch (e) {
       yield LLMStreamChunkError('HTTP error initiating stream: $e');
       return;
