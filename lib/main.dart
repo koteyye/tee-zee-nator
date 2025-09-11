@@ -42,11 +42,12 @@ void main() async {
         debugPrint('[main] Adapter $name register skipped: $e');
       }
     }
-    safeRegister<AppConfig>(AppConfigAdapter(), 'AppConfigAdapter');
-    safeRegister<Template>(TemplateAdapter(), 'TemplateAdapter');
-    safeRegister<OutputFormat>(OutputFormatAdapter(), 'OutputFormatAdapter');
-    safeRegister<ConfluenceConfig>(ConfluenceConfigAdapter(), 'ConfluenceConfigAdapter');
-    safeRegister<TemplateFormat>(TemplateFormatAdapter(), 'TemplateFormatAdapter');
+  // ВАЖНО: сначала регистрируем все enum/простые адаптеры, затем составные модели
+  safeRegister<TemplateFormat>(TemplateFormatAdapter(), 'TemplateFormatAdapter');
+  safeRegister<OutputFormat>(OutputFormatAdapter(), 'OutputFormatAdapter');
+  safeRegister<AppConfig>(AppConfigAdapter(), 'AppConfigAdapter');
+  safeRegister<ConfluenceConfig>(ConfluenceConfigAdapter(), 'ConfluenceConfigAdapter');
+  safeRegister<Template>(TemplateAdapter(), 'TemplateAdapter');
 
     // НЕ блокируем первый кадр await-ом init(). Инициализация пройдет уже внутри FutureBuilder.
     final preConfigService = ConfigService();

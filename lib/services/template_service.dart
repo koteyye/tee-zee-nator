@@ -98,16 +98,30 @@ class TemplateService extends ChangeNotifier {
     if (!_templatesBox.containsKey(_defaultKey)) {
       final content = await _tryLoadDefaultAsset();
       if (content != null) {
-        final defaultTemplate = Template(
-          id: _defaultKey,
-          name: 'Шаблон по умолчанию',
-          content: content,
-          isDefault: true,
-          createdAt: DateTime.now(),
-          format: TemplateFormat.markdown,
-        );
-        await _templatesBox.put(_defaultKey, defaultTemplate);
-        log('Unified default template created successfully from asset');
+        Future<void> _writeDefault() async {
+          final defaultTemplate = Template(
+            id: _defaultKey,
+            name: 'Шаблон по умолчанию',
+            content: content,
+            isDefault: true,
+            createdAt: DateTime.now(),
+            format: TemplateFormat.markdown,
+          );
+          await _templatesBox.put(_defaultKey, defaultTemplate);
+        }
+        try {
+          await _writeDefault();
+          log('Unified default template created successfully from asset');
+        } catch (e) {
+          if (e.toString().contains('unknown type: TemplateFormat')) {
+            log('TemplateFormat adapter missing at write time – registering late and retrying');
+            try { Hive.registerAdapter<TemplateFormat>(TemplateFormatAdapter()); } catch (_) {}
+            await _writeDefault();
+            log('Unified default template created after late adapter registration');
+          } else {
+            rethrow;
+          }
+        }
       } else {
         log('No default asset available, creating placeholder default template');
         final placeholder = Template(
