@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Техническое задание</title>
+</head>
+<body>
+    <h1>Техническое задание</h1>
+    
+    <h2>1. User Story</h2>
+    <ac:structured-macro ac:name="info">
+        <ac:parameter ac:name="title">Формат User Story</ac:parameter>
+        <ac:rich-text-body>
+            <p><strong>Я, как...</strong> [роль пользователя], <strong>хочу...</strong> [действие], <strong>чтобы...</strong> [ценность]</p>
+            <p><em>Альтернативно можно использовать Job Story:</em> <strong>Когда...</strong> [событие], <strong>хочу...</strong> [действие], <strong>чтобы...</strong> [результат]</p>
+        </ac:rich-text-body>
+    </ac:structured-macro>
+    
+    <p><em>[Описать User Story в соответствии с выбранным форматом]</em></p>
+    
+    <h2>2. Контроль версионности</h2>
+    <table>
+        <tr>
+            <th>Версия</th>
+            <th>Описание изменений</th>
+            <th>Дата</th>
+            <th>Автор изменений</th>
+        </tr>
+        <tr>
+            <td>1.00</td>
+            <td>Первоначальная версия</td>
+            <td>[дата]</td>
+            <td>[автор]</td>
+        </tr>
+    </table>
+    
+    <h2>3. Проблематика</h2>
+    <p><em>[Описать бизнес-проблему или ситуацию, из которой была выделена User Story]</em></p>
+    
+    <h2>4. Критерии приемки</h2>
+    <ac:structured-macro ac:name="info">
+        <ac:parameter ac:name="title">Принципы формулирования критериев приемки</ac:parameter>
+        <ac:rich-text-body>
+            <ul>
+                <li><strong>Фокус на бизнес-ценности</strong> - описывайте пользу для бизнеса или пользователя</li>
+                <li><strong>Ориентация на результат</strong> - избегайте технических деталей реализации</li>
+                <li><strong>Измеримость</strong> - критерии должны быть конкретными и проверяемыми</li>
+            </ul>
+        </ac:rich-text-body>
+    </ac:structured-macro>
+    
+    <ul>
+        <li><em>[Критерий приемки 1]</em></li>
+        <li><em>[Критерий приемки 2]</em></li>
+        <li><em>[Критерий приемки 3]</em></li>
+    </ul>
+    
+    <h2>5. Сценарии использования</h2>
+    <ac:structured-macro ac:name="note">
+        <ac:parameter ac:name="title">Условно обязательный раздел</ac:parameter>
+        <ac:rich-text-body>
+            <p>Описывается только в случае, если подразумевается взаимодействие пользователя с интерфейсом</p>
+        </ac:rich-text-body>
+    </ac:structured-macro>
+    
+    <h3>Сценарий 1: [Название сценария]</h3>
+    <p><strong>Входящее условие:</strong> <em>[Условия для начала выполнения сценария]</em></p>
+    
+    <p><strong>Успешный сценарий:</strong></p>
+    <ol>
+        <li><em>[Шаг 1]</em></li>
+        <li><em>[Шаг 2]</em></li>
+        <li><em>[Шаг 3]</em></li>
+    </ol>
+    
+    <p><strong>Альтернативные/негативные сценарии:</strong></p>
+    <ul>
+        <li><em>[Альтернативный сценарий 1]</em></li>
+        <li><em>[Альтернативный сценарий 2]</em></li>
+    </ul>
+    
+    <h2>6. Функциональные требования</h2>
+    
+    <h3>Front End</h3>
+    <table>
+        <tr>
+            <th>Swagger</th>
+            <td><em>[Ссылка на GitLab или иной источник]</em></td>
+        </tr>
+        <tr>
+            <th>Макеты</th>
+            <td><em>[Ссылка на Figma]</em></td>
+        </tr>
+    </table>
+    
+    <ul>
+        <li><em>[Требование к Front End 1]</em></li>
+        <li><em>[Требование к Front End 2]</em></li>
+    </ul>
+    
+    <h3>Back End</h3>
+    <table>
+        <tr>
+            <th>Swagger</th>
+            <td><em>[Ссылка на GitLab или иной источник]</em></td>
+        </tr>
+    </table>
+    
+    <ul>
+        <li><em>[Требование к Back End 1]</em></li>
+        <li><em>[Требование к Back End 2]</em></li>
+    </ul>
+    
+    <h3>UX/UI</h3>
+    <table>
+        <tr>
+            <th>Макеты</th>
+            <td><em>[Ссылка на Figma]</em></td>
+        </tr>
+    </table>
+    
+    <ul>
+        <li><em>[Требование к UX/UI 1]</em></li>
+        <li><em>[Требование к UX/UI 2]</em></li>
+    </ul>
+    
+    <h2>7. Нефункциональные требования и ограничения</h2>
+    <ac:structured-macro ac:name="warning">
+        <ac:parameter ac:name="title">Обязательный раздел</ac:parameter>
+        <ac:rich-text-body>
+            <p>Если нефункциональных требований нет, необходимо указать "Не выявлены"</p>
+        </ac:rich-text-body>
+    </ac:structured-macro>
+    
+    <ul>
+        <li><em>[НФТ 1 или "Не выявлены"]</em></li>
+        <li><em>[НФТ 2]</em></li>
+    </ul>
+    
+    <h2>8. Критерии готовности (DoD)</h2>
+    <ac:structured-macro ac:name="info">
+        <ac:parameter ac:name="title">Принципы формулирования критериев готовности</ac:parameter>
+        <ac:rich-text-body>
+            <ul>
+                <li><strong>Фокус на технических деталях</strong> - конкретные технические задачи</li>
+                <li><strong>Конкретность и измеримость</strong> - должны быть проверяемыми</li>
+                <li><strong>Связь с критериями приемки</strong> - способствуют достижению бизнес-целей</li>
+            </ul>
+        </ac:rich-text-body>
+    </ac:structured-macro>
+    
+    <ul>
+        <li><em>[Критерий готовности 1]</em></li>
+        <li><em>[Критерий готовности 2]</em></li>
+        <li><em>[Критерий готовности 3]</em></li>
+    </ul>
+    
+    <h2>9. Примеры использования</h2>
+    <h3>Пример кода</h3>
+    <ac:structured-macro ac:name="code">
+        <ac:parameter ac:name="language">dart</ac:parameter>
+        <ac:parameter ac:name="theme">default</ac:parameter>
+        <ac:plain-text-body><![CDATA[
+// Пример кода для иллюстрации
+void main() {
+  print("Пример реализации");
+}
+        ]]></ac:plain-text-body>
+    </ac:structured-macro>
+    
+    <h3>Важная информация</h3>
+    <ac:structured-macro ac:name="panel">
+        <ac:parameter ac:name="title">Дополнительные замечания</ac:parameter>
+        <ac:rich-text-body>
+            <p><em>[Любая дополнительная важная информация для разработки]</em></p>
+        </ac:rich-text-body>
+    </ac:structured-macro>
+</body>
+</html>
