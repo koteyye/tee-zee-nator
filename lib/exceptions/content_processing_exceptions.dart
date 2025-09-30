@@ -116,3 +116,104 @@ class ContentExtractionException extends ContentProcessingException {
   @override
   String toString() => 'ContentExtractionException: $message';
 }
+
+/// Exception thrown during music generation API operations
+class MusicGenerationException extends ContentProcessingException {
+  const MusicGenerationException(
+    super.message, {
+    super.recoveryAction,
+    super.technicalDetails,
+  });
+
+  @override
+  String toString() => 'MusicGenerationException: $message';
+}
+
+/// Исключение для ошибок аутентификации GenAPI (401)
+class ApiAuthenticationException extends MusicGenerationException {
+  final int statusCode;
+
+  const ApiAuthenticationException(
+    super.message, {
+    this.statusCode = 401,
+    super.recoveryAction,
+    super.technicalDetails,
+  });
+
+  @override
+  String toString() => 'ApiAuthenticationException: $message (HTTP $statusCode)';
+}
+
+/// Исключение для ошибок лимита запросов GenAPI (419)
+class ApiRateLimitException extends MusicGenerationException {
+  final int statusCode;
+  final Duration? retryAfter;
+
+  const ApiRateLimitException(
+    super.message, {
+    this.statusCode = 419,
+    this.retryAfter,
+    super.recoveryAction,
+    super.technicalDetails,
+  });
+
+  @override
+  String toString() => 'ApiRateLimitException: $message (HTTP $statusCode)';
+}
+
+/// Исключение для ошибок сервера GenAPI (500, 503)
+class ApiServerException extends MusicGenerationException {
+  final int statusCode;
+
+  const ApiServerException(
+    super.message, {
+    required this.statusCode,
+    super.recoveryAction,
+    super.technicalDetails,
+  });
+
+  @override
+  String toString() => 'ApiServerException: $message (HTTP $statusCode)';
+}
+
+/// Исключение для ошибки таймаута генерации
+class MusicGenerationTimeoutException extends MusicGenerationException {
+  final Duration timeout;
+
+  const MusicGenerationTimeoutException(
+    super.message, {
+    required this.timeout,
+    super.recoveryAction,
+    super.technicalDetails,
+  });
+
+  @override
+  String toString() => 'MusicGenerationTimeoutException: $message (${timeout.inMinutes} min)';
+}
+
+/// Исключение для ошибок скачивания музыкального файла
+class MusicDownloadException extends MusicGenerationException {
+  final String? audioUrl;
+
+  const MusicDownloadException(
+    super.message, {
+    this.audioUrl,
+    super.recoveryAction,
+    super.technicalDetails,
+  });
+
+  @override
+  String toString() => 'MusicDownloadException: $message';
+}
+
+/// Исключение для недостаточного баланса (402)
+class InsufficientFundsException extends MusicGenerationException {
+  const InsufficientFundsException(
+    super.message, {
+    super.recoveryAction,
+    super.technicalDetails,
+  });
+
+  @override
+  String toString() => 'InsufficientFundsException: $message';
+}

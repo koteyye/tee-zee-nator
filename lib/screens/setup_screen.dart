@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/template_service.dart';
 import '../services/config_service.dart';
 import '../services/llm_service.dart';
@@ -8,6 +9,7 @@ import '../models/app_config.dart';
 import '../models/openai_model.dart';
 import '../models/output_format.dart';
 import '../widgets/main_screen/confluence_settings_widget.dart';
+import '../widgets/main_screen/music_settings_widget.dart';
 import 'main_screen.dart';
 
 class SetupScreen extends StatefulWidget {
@@ -46,6 +48,11 @@ class _SetupScreenState extends State<SetupScreen> {
   bool _hideCerebrasToken = true;
   bool _hideGroqToken = true;
 
+  // Новые переменные состояния для управления кнопками
+  bool _isFirstLaunch = false;
+  bool _canSave = false;
+  bool _allRequiredFieldsFilled = false;
+
   Future<void> _pasteInto(TextEditingController c) async {
     final data = await Clipboard.getData('text/plain');
     if (data != null && data.text != null && data.text!.trim().isNotEmpty) {
@@ -70,6 +77,7 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   void initState() {
     super.initState();
+    _detectFirstLaunch();
     _loadCurrentConfig();
   }
 
@@ -122,6 +130,10 @@ class _SetupScreenState extends State<SetupScreen> {
   // Помечаем как успешное подключение, если есть валидная конфигурация
   _connectionSuccess = true;
       });
+
+      // Обновляем состояние кнопок
+      _updateSaveAvailability();
+      _checkRequiredFields();
     }
   }
   
@@ -204,6 +216,10 @@ class _SetupScreenState extends State<SetupScreen> {
             _selectedModel = providerModels.first;
           }
         });
+
+        // Обновляем состояние кнопок после успешного подключения
+        _updateSaveAvailability();
+        _checkRequiredFields();
       } else {
         String errorMsg;
         switch (_selectedProvider) {
@@ -229,85 +245,341 @@ class _SetupScreenState extends State<SetupScreen> {
       });
     }
   }
-  
-  Future<void> _saveAndProceed() async {
+
+  // Методы для создания кнопок AppBar
+  Widget _buildActionButton({
+    required String assetPath,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        margin: const EdgeInsets.only(right: 8),
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade400),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: onPressed,
+            child: Center(
+              child: SvgPicture.asset(
+                assetPath,
+                width: 20,
+                height: 20,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return _buildActionButton(
+      assetPath: 'assets/icons/save.svg',
+      tooltip: 'Сохранить конфигурацию',
+      onPressed: _canSave ? _saveConfig : null,
+    );
+  }
+
+  Widget _buildClearButton() {
+    return _buildActionButton(
+      assetPath: 'assets/icons/clear.svg',
+      tooltip: 'Очистить конфигурацию',
+      onPressed: _clearConfig,
+    );
+  }
+
+  Widget _buildStartButton() {
+    return _buildActionButton(
+      assetPath: 'assets/icons/save.svg', // Используем иконку сохранения для кнопки "Начать"
+      tooltip: 'Начать работу',
+      onPressed: _allRequiredFieldsFilled ? _startWork : null,
+    );
+  }
+
+  // Логические методы состояния
+  bool _shouldShowBackButton() {
+    // Показываем кнопку "Назад" если мы НЕ на первом запуске
+    return !_isFirstLaunch;
+  }
+
+  bool _shouldShowStartButton() {
+    // Показываем кнопку "Начать" только при первом запуске и если все готово
+    return _isFirstLaunch && _allRequiredFieldsFilled;
+  }
+
+  void _updateSaveAvailability() {
+    final formValid = _formKey.currentState?.validate() ?? false;
+    final hasChanges = true; // Пока просто true, можно доработать логику
+    final notTesting = !_isTestingConnection;
+
+    setState(() {
+      _canSave = formValid && hasChanges && notTesting;
+    });
+  }
+
+  void _checkRequiredFields() {
+    bool allFilled = false;
+
+    // Проверяем есть ли модель (либо выбранная, либо в существующей конфигурации)
     final configService = Provider.of<ConfigService>(context, listen: false);
     final existingConfig = configService.config;
-    
-    if (_selectedModel == null) return;
-    
-    AppConfig config;
-    
-    if (_selectedProvider == 'openai') {
-      config = AppConfig(
-        apiUrl: _urlController.text.trim(),
-        apiToken: _tokenController.text.trim(),
-        provider: 'openai',
-        defaultModel: _selectedModel!.id,
-        reviewModel: _selectedModel!.id,
-        selectedTemplateId: existingConfig?.selectedTemplateId,
-        outputFormat: _selectedFormat,
-        confluenceConfig: existingConfig?.confluenceConfig,
+    final hasModel = _selectedModel != null || existingConfig?.defaultModel != null;
+
+    // Проверяем в зависимости от выбранного провайдера
+    switch (_selectedProvider) {
+      case 'openai':
+        allFilled = _urlController.text.trim().isNotEmpty &&
+                   _tokenController.text.trim().isNotEmpty &&
+                   _connectionSuccess &&
+                   hasModel;
+        break;
+      case 'llmops':
+        allFilled = _llmopsUrlController.text.trim().isNotEmpty &&
+                   _connectionSuccess &&
+                   hasModel;
+        break;
+      case 'cerebras':
+        allFilled = _cerebrasTokenController.text.trim().isNotEmpty &&
+                   _connectionSuccess &&
+                   hasModel;
+        break;
+      case 'groq':
+        allFilled = _groqTokenController.text.trim().isNotEmpty &&
+                   _connectionSuccess &&
+                   hasModel;
+        break;
+    }
+
+    setState(() {
+      _allRequiredFieldsFilled = allFilled;
+    });
+  }
+
+  Future<void> _detectFirstLaunch() async {
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    try {
+      await configService.init();
+      final config = configService.config;
+      setState(() {
+        _isFirstLaunch = config == null;
+      });
+    } catch (e) {
+      // При ошибке считаем, что это первый запуск
+      setState(() {
+        _isFirstLaunch = true;
+      });
+    }
+  }
+
+  // Методы действий
+  Future<void> _saveConfig() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    try {
+      final configService = Provider.of<ConfigService>(context, listen: false);
+      // Перезагружаем конфигурацию для получения последних изменений музикации
+      await configService.init();
+      final existingConfig = configService.config;
+
+      // Определяем модель: либо выбранная, либо из существующей конфигурации
+      String? modelToUse;
+      if (_selectedModel != null) {
+        modelToUse = _selectedModel!.id;
+      } else if (existingConfig != null) {
+        modelToUse = existingConfig.defaultModel;
+      }
+
+      if (modelToUse == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Сначала выберите модель'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      AppConfig config;
+
+      if (_selectedProvider == 'openai') {
+        config = AppConfig(
+          apiUrl: _urlController.text.trim(),
+          apiToken: _tokenController.text.trim(),
+          provider: 'openai',
+          defaultModel: modelToUse,
+          reviewModel: modelToUse,
+          selectedTemplateId: existingConfig?.selectedTemplateId,
+          outputFormat: _selectedFormat,
+          confluenceConfig: existingConfig?.confluenceConfig,
+          specMusicConfig: existingConfig?.specMusicConfig,
+        );
+      } else if (_selectedProvider == 'cerebras') {
+        config = AppConfig(
+          apiUrl: 'https://api.cerebras.ai/v1',
+          apiToken: 'test-token',
+          provider: 'cerebras',
+          cerebrasToken: _cerebrasTokenController.text.trim(),
+          defaultModel: modelToUse,
+          reviewModel: modelToUse,
+          selectedTemplateId: existingConfig?.selectedTemplateId,
+          outputFormat: _selectedFormat,
+          confluenceConfig: existingConfig?.confluenceConfig,
+          specMusicConfig: existingConfig?.specMusicConfig,
+        );
+      } else if (_selectedProvider == 'groq') {
+        config = AppConfig(
+          apiUrl: 'https://api.groq.com/openai/v1',
+          apiToken: 'test-token',
+          provider: 'groq',
+          groqToken: _groqTokenController.text.trim(),
+          defaultModel: modelToUse,
+          reviewModel: modelToUse,
+          selectedTemplateId: existingConfig?.selectedTemplateId,
+          outputFormat: _selectedFormat,
+          confluenceConfig: existingConfig?.confluenceConfig,
+          specMusicConfig: existingConfig?.specMusicConfig,
+        );
+      } else {
+        // LLMOps
+        config = AppConfig(
+          apiUrl: 'https://api.openai.com/v1',
+          apiToken: 'test-token',
+          provider: 'llmops',
+          llmopsBaseUrl: _llmopsUrlController.text.trim(),
+          llmopsModel: modelToUse,
+          llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty
+              ? null
+              : _llmopsAuthController.text.trim(),
+          defaultModel: modelToUse,
+          reviewModel: modelToUse,
+          selectedTemplateId: existingConfig?.selectedTemplateId,
+          outputFormat: _selectedFormat,
+          confluenceConfig: existingConfig?.confluenceConfig,
+          specMusicConfig: existingConfig?.specMusicConfig,
+        );
+      }
+
+      await configService.saveConfig(config);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Конфигурация успешно сохранена'),
+          backgroundColor: Colors.green,
+        ),
       );
-    } else if (_selectedProvider == 'cerebras') {
-      config = AppConfig(
-        apiUrl: 'https://api.cerebras.ai/v1', // Заглушка для обязательных полей
-        apiToken: 'test-token', // Заглушка для обязательных полей
-        provider: 'cerebras',
-        cerebrasToken: _cerebrasTokenController.text.trim(),
-        defaultModel: _selectedModel!.id,
-        reviewModel: _selectedModel!.id,
-        selectedTemplateId: existingConfig?.selectedTemplateId,
-        outputFormat: _selectedFormat,
-        confluenceConfig: existingConfig?.confluenceConfig,
-      );
-    } else if (_selectedProvider == 'groq') {
-      config = AppConfig(
-        apiUrl: 'https://api.groq.com/openai/v1', // Заглушка для обязательных полей
-        apiToken: 'test-token', // Заглушка для обязательных полей
-        provider: 'groq',
-        groqToken: _groqTokenController.text.trim(),
-        defaultModel: _selectedModel!.id,
-        reviewModel: _selectedModel!.id,
-        selectedTemplateId: existingConfig?.selectedTemplateId,
-        outputFormat: _selectedFormat,
-        confluenceConfig: existingConfig?.confluenceConfig,
-      );
-    } else {
-      // LLMOps
-      config = AppConfig(
-        apiUrl: 'https://api.openai.com/v1', // Заглушка для обязательных полей
-        apiToken: 'test-token', // Заглушка для обязательных полей
-        provider: 'llmops',
-        llmopsBaseUrl: _llmopsUrlController.text.trim(),
-        llmopsModel: _selectedModel!.id,
-        llmopsAuthHeader: _llmopsAuthController.text.trim().isEmpty
-            ? null
-            : _llmopsAuthController.text.trim(),
-        defaultModel: _selectedModel!.id,
-        reviewModel: _selectedModel!.id,
-        selectedTemplateId: existingConfig?.selectedTemplateId,
-        outputFormat: _selectedFormat,
-        confluenceConfig: existingConfig?.confluenceConfig,
+
+      // Обновляем состояние после сохранения
+      _updateSaveAvailability();
+      _checkRequiredFields();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при сохранении: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
-    
+  }
+
+  Future<void> _clearConfig() async {
+    final confirmed = await _showClearConfirmation();
+    if (!confirmed) return;
+
+    try {
+      final configService = Provider.of<ConfigService>(context, listen: false);
+      await configService.forceReset();
+
+      if (!mounted) return;
+
+      // Сбрасываем все поля формы
+      setState(() {
+        _urlController.text = 'https://api.openai.com/v1';
+        _tokenController.text = '';
+        _llmopsUrlController.text = 'http://localhost:11434';
+        _llmopsAuthController.text = '';
+        _cerebrasTokenController.text = '';
+        _groqTokenController.text = '';
+        _selectedProvider = 'openai';
+        _selectedFormat = OutputFormat.defaultFormat;
+        _connectionSuccess = false;
+        _errorMessage = null;
+        _availableModels = [];
+        _selectedModel = null;
+        _canSave = false;
+        _allRequiredFieldsFilled = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Конфигурация успешно очищена'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при очистке: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<bool> _showClearConfirmation() async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Подтверждение'),
+        content: const Text('Вы уверены, что хотите очистить всю конфигурацию?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Очистить'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  Future<void> _startWork() async {
+    // Сначала сохраняем конфигурацию
+    await _saveConfig();
+
+    if (!mounted) return;
+
     final llmService = Provider.of<LLMService>(context, listen: false);
     final templateService = Provider.of<TemplateService>(context, listen: false);
-    
-    // Сохраняем конфигурацию
-    await configService.saveConfig(config);
-    
+    final configService = Provider.of<ConfigService>(context, listen: false);
+
+    final config = configService.config;
+    if (config == null) return;
+
     // Инициализируем провайдера с новой конфигурацией
     llmService.initializeProvider(config);
-    
+
     // Предварительно загружаем модели
     try {
       await llmService.getModels();
     } catch (e) {
       print('Ошибка при загрузке моделей: $e');
     }
-    
+
     // Инициализируем шаблоны
     try {
       if (!templateService.isInitialized) {
@@ -316,18 +588,25 @@ class _SetupScreenState extends State<SetupScreen> {
     } catch (e) {
       print('Ошибка при инициализации шаблонов: $e');
     }
-    
+
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const MainScreen()),
     );
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Настройка подключения'),
+        automaticallyImplyLeading: _shouldShowBackButton(),
+        actions: [
+          _buildSaveButton(),
+          _buildClearButton(),
+          if (_shouldShowStartButton()) _buildStartButton(),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -367,6 +646,10 @@ class _SetupScreenState extends State<SetupScreen> {
                       _availableModels = [];
                       _selectedModel = null;
                     });
+
+                    // Обновляем состояние кнопок при смене провайдера
+                    _updateSaveAvailability();
+                    _checkRequiredFields();
                   }
                 },
               ),
@@ -395,6 +678,8 @@ class _SetupScreenState extends State<SetupScreen> {
                           setState(() {
                             _selectedFormat = value;
                           });
+                          // Обновляем состояние кнопок при изменении формата
+                          _updateSaveAvailability();
                         }
                       },
                     );
@@ -694,6 +979,9 @@ class _SetupScreenState extends State<SetupScreen> {
                             setState(() {
                               _selectedModel = value;
                             });
+                            // Обновляем состояние кнопок при выборе модели
+                            _updateSaveAvailability();
+                            _checkRequiredFields();
                           },
                         );
                       },
@@ -702,53 +990,42 @@ class _SetupScreenState extends State<SetupScreen> {
                 
                 const SizedBox(height: 24),
                 
-                // Кнопки
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Основная кнопка продолжения
-                    ElevatedButton(
-                      onPressed: _connectionSuccess && _selectedModel != null 
-                          ? _saveAndProceed 
-                          : null,
-                      child: const Text('Приступить к работе'),
-                    ),
-                    const SizedBox(height: 8),
-                    
-                    // Кнопка для сброса конфигурации (в случае проблем)
-                    TextButton.icon(
-                      onPressed: () async {
-                        try {
-                          final configService = Provider.of<ConfigService>(context, listen: false);
-                          await configService.forceReset();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Конфигурация сброшена. Попробуйте заново.'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Ошибка при сбросе: $e'),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.refresh, size: 16),
-                      label: const Text('Сбросить конфигурацию'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.orange[700],
-                      ),
-                    ),
-                  ],
+                // Кнопка для сброса конфигурации (в случае проблем)
+                TextButton.icon(
+                  onPressed: () async {
+                    try {
+                      final configService = Provider.of<ConfigService>(context, listen: false);
+                      await configService.forceReset();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Конфигурация сброшена. Попробуйте заново.'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Ошибка при сбросе: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Сбросить конфигурацию'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.orange[700],
+                  ),
                 ),
               ],
               
               // Confluence Integration Settings
               const SizedBox(height: 24),
               const ConfluenceSettingsWidget(),
+
+              // Music Generation Settings
+              const SizedBox(height: 24),
+              const MusicSettingsWidget(),
             ],
           ),
         ),

@@ -13,7 +13,7 @@ import '../services/confluence_session_manager.dart';
 import '../models/generation_history.dart';
 import '../widgets/main_screen/main_screen_widgets.dart';
 import '../widgets/main_screen/confluence_publish_modal.dart';
-import '../widgets/common/user_guidance_widget.dart';
+import '../widgets/main_screen/integration_indicators.dart';
 import '../widgets/common/enhanced_tooltip.dart';
 import 'setup_screen.dart';
 import 'template_management_screen.dart';
@@ -520,6 +520,9 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         return Scaffold(
           appBar: AppBar(
             actions: [
+              // Integration indicators
+              const IntegrationIndicators(),
+              const SizedBox(width: 16),
               EnhancedTooltip(
                 message: 'Manage specification templates',
                 keyboardShortcut: 'Ctrl+T',
@@ -569,18 +572,6 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             const ModelSettingsCard(),
             const SizedBox(height: 16),
             
-            // User guidance (show for first-time users or when helpful)
-            if (_showGuidance && _streamController.state.document.isEmpty) ...[
-              Consumer<ConfigService>(
-                builder: (context, configService, child) {
-                  return ConfluenceGuidanceWidget(
-                    isConfluenceEnabled: configService.isConfluenceEnabled(),
-                    hasValidConnection: configService.getConfluenceConfig()?.isValid ?? false,
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-            ],
 
               
             // Основной контент
@@ -642,6 +633,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                             error: sc.state.error,
                             onSave: _saveFile,
                             onAbort: () => _streamController.abort(),
+                            requirements: _rawRequirementsController.text,
                           );
                         },
                       ),

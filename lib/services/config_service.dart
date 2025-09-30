@@ -298,6 +298,8 @@ class ConfigService extends ChangeNotifier {
         groqToken: config.groqToken,
         outputFormat: config.outputFormat,
         confluenceConfig: config.confluenceConfig,
+        // КРИТИЧЕСКИ ВАЖНО: сохраняем конфигурацию музикации
+        specMusicConfig: config.specMusicConfig,
       );
       
       _config = newConfig;

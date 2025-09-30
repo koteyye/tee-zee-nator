@@ -6,6 +6,7 @@ import 'models/app_config.dart';
 import 'models/template.dart';
 import 'models/output_format.dart';
 import 'models/confluence_config.dart';
+import 'models/spec_music_config.dart';
 import 'services/config_service.dart';
 import 'services/template_service.dart';
 import 'services/llm_service.dart';
@@ -47,6 +48,7 @@ void main() async {
   safeRegister<OutputFormat>(OutputFormatAdapter(), 'OutputFormatAdapter');
   safeRegister<AppConfig>(AppConfigAdapter(), 'AppConfigAdapter');
   safeRegister<ConfluenceConfig>(ConfluenceConfigAdapter(), 'ConfluenceConfigAdapter');
+  safeRegister<SpecMusicConfig>(SpecMusicConfigAdapter(), 'SpecMusicConfigAdapter');
   safeRegister<Template>(TemplateAdapter(), 'TemplateAdapter');
 
     // НЕ блокируем первый кадр await-ом init(). Инициализация пройдет уже внутри FutureBuilder.

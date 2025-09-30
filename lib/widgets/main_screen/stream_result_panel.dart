@@ -7,6 +7,7 @@ import '../../services/config_service.dart';
 import '../../theme/app_theme.dart';
 import 'confluence_html_transformer.dart';
 import 'html_content_viewer.dart';
+import 'music_control_buttons.dart';
 
 class StreamResultPanel extends StatelessWidget {
   final String documentText;
@@ -19,19 +20,21 @@ class StreamResultPanel extends StatelessWidget {
   final String? error;
   final VoidCallback onSave;
   final VoidCallback? onAbort;
+  final String? requirements;
 
   const StreamResultPanel({
     super.key,
     required this.documentText,
     required this.isActive,
     required this.finalized,
-  required this.phase,
+    required this.phase,
     required this.progress,
     this.summary,
     this.error,
-  required this.aborted,
+    required this.aborted,
     required this.onSave,
     this.onAbort,
+    this.requirements,
   });
 
   @override
@@ -55,6 +58,13 @@ class StreamResultPanel extends StatelessWidget {
               const SizedBox(width: 8),
             ],
             if (documentText.isNotEmpty) ...[
+              // Music control buttons
+              if (requirements != null && requirements!.trim().isNotEmpty)
+                MusicControlButtons(
+                  requirements: requirements!,
+                  isGenerationActive: isActive && !finalized,
+                ),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () {
                   final transformed = ConfluenceHtmlTransformer.transformForRender(documentText);
