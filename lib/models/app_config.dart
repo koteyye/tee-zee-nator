@@ -2,6 +2,7 @@ import 'package:hive/hive.dart';
 import 'package:json_annotation/json_annotation.dart';
 import 'output_format.dart';
 import 'confluence_config.dart';
+import 'spec_music_config.dart';
 
 part 'app_config.g.dart';
 
@@ -48,6 +49,10 @@ class AppConfig {
   @HiveField(12)
   final String? groqToken; // API токен для Groq
 
+  @HiveField(13)
+  @JsonKey(toJson: _specMusicConfigToJson, fromJson: _specMusicConfigFromJson)
+  final SpecMusicConfig? specMusicConfig; // Конфигурация музикации
+
   AppConfig({
     required this.apiUrl,
     required this.apiToken,
@@ -63,6 +68,7 @@ class AppConfig {
     this.confluenceConfig,
     this.cerebrasToken,
     this.groqToken,
+    this.specMusicConfig,
   }) : outputFormat = outputFormat ?? preferredFormat ?? OutputFormat.markdown; // Приоритет: новый параметр, затем legacy, затем значение по умолчанию
 
   // Legacy геттер для обратной совместимости с существующими тестами/кодом
@@ -88,6 +94,7 @@ class AppConfig {
       confluenceConfig: map[10] as ConfluenceConfig?, // Confluence конфигурация для новых пользователей, null для существующих
       cerebrasToken: map[11] as String?, // Cerebras AI токен
       groqToken: map[12] as String?, // Groq токен
+      specMusicConfig: map[13] as SpecMusicConfig?, // Конфигурация музикации
       // Игнорируем старое поле useConfluenceFormat - теперь всегда используем Confluence
     );
   }
@@ -106,6 +113,7 @@ class AppConfig {
     Object? confluenceConfig = _sentinel,
     String? cerebrasToken,
     String? groqToken,
+    Object? specMusicConfig = _sentinel,
   }) {
     return AppConfig(
       apiUrl: apiUrl ?? this.apiUrl,
@@ -118,11 +126,14 @@ class AppConfig {
       llmopsModel: llmopsModel ?? this.llmopsModel,
       llmopsAuthHeader: llmopsAuthHeader ?? this.llmopsAuthHeader,
       outputFormat: outputFormat ?? this.outputFormat,
-      confluenceConfig: confluenceConfig == _sentinel 
-          ? this.confluenceConfig 
+      confluenceConfig: confluenceConfig == _sentinel
+          ? this.confluenceConfig
           : confluenceConfig as ConfluenceConfig?,
       cerebrasToken: cerebrasToken ?? this.cerebrasToken,
       groqToken: groqToken ?? this.groqToken,
+      specMusicConfig: specMusicConfig == _sentinel
+          ? this.specMusicConfig
+          : specMusicConfig as SpecMusicConfig?,
     );
   }
 }
@@ -137,4 +148,13 @@ Map<String, dynamic>? _confluenceConfigToJson(ConfluenceConfig? config) {
 
 ConfluenceConfig? _confluenceConfigFromJson(Map<String, dynamic>? json) {
   return json != null ? ConfluenceConfig.fromJson(json) : null;
+}
+
+// Helper functions for SpecMusicConfig JSON serialization
+Map<String, dynamic>? _specMusicConfigToJson(SpecMusicConfig? config) {
+  return config?.toJson();
+}
+
+SpecMusicConfig? _specMusicConfigFromJson(Map<String, dynamic>? json) {
+  return json != null ? SpecMusicConfig.fromJson(json) : null;
 }

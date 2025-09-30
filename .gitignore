@@ -83,3 +83,9 @@ flutter_01.log
 
 # Coverage reports
 /coverage/
+.docs
+
+CLAUDE.md
+installer.iss
+/installer_output/
+docs

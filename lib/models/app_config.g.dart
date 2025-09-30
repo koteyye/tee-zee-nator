@@ -26,17 +26,18 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       llmopsBaseUrl: fields[6] as String?,
       llmopsModel: fields[7] as String?,
       llmopsAuthHeader: fields[8] as String?,
-      outputFormat: fields[9] as OutputFormat,
+      outputFormat: fields[9] as OutputFormat?,
       confluenceConfig: fields[10] as ConfluenceConfig?,
       cerebrasToken: fields[11] as String?,
       groqToken: fields[12] as String?,
+      specMusicConfig: fields[13] as SpecMusicConfig?,
     );
   }
 
   @override
   void write(BinaryWriter writer, AppConfig obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.apiUrl)
       ..writeByte(1)
@@ -62,7 +63,9 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       ..writeByte(11)
       ..write(obj.cerebrasToken)
       ..writeByte(12)
-      ..write(obj.groqToken);
+      ..write(obj.groqToken)
+      ..writeByte(13)
+      ..write(obj.specMusicConfig);
   }
 
   @override
@@ -91,12 +94,13 @@ AppConfig _$AppConfigFromJson(Map<String, dynamic> json) => AppConfig(
       llmopsModel: json['llmopsModel'] as String?,
       llmopsAuthHeader: json['llmopsAuthHeader'] as String?,
       outputFormat:
-          $enumDecodeNullable(_$OutputFormatEnumMap, json['outputFormat']) ??
-              OutputFormat.markdown,
+          $enumDecodeNullable(_$OutputFormatEnumMap, json['outputFormat']),
       confluenceConfig: _confluenceConfigFromJson(
           json['confluenceConfig'] as Map<String, dynamic>?),
       cerebrasToken: json['cerebrasToken'] as String?,
       groqToken: json['groqToken'] as String?,
+      specMusicConfig: _specMusicConfigFromJson(
+          json['specMusicConfig'] as Map<String, dynamic>?),
     );
 
 Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
@@ -113,6 +117,7 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
       'confluenceConfig': _confluenceConfigToJson(instance.confluenceConfig),
       'cerebrasToken': instance.cerebrasToken,
       'groqToken': instance.groqToken,
+      'specMusicConfig': _specMusicConfigToJson(instance.specMusicConfig),
     };
 
 const _$OutputFormatEnumMap = {
