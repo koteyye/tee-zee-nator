@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../l10n/app_localizations.dart';
+import '../../services/app_info_service.dart';
 
 class AppFooter extends StatelessWidget {
   const AppFooter({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final appInfoService = Provider.of<AppInfoService>(context, listen: false);
+    final l10n = AppLocalizations.of(context)!;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
       decoration: BoxDecoration(
@@ -20,7 +26,7 @@ class AppFooter extends StatelessWidget {
               Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
               const SizedBox(width: 8),
               Text(
-                'TeeZeeNator v1.2.2',
+                appInfoService.getFooterText(),
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
@@ -32,19 +38,10 @@ class AppFooter extends StatelessWidget {
           Row(
             children: [
               Text(
-                'Создано',
+                l10n.createdBy('Koteyye'),
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'Koteyye',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[700],
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],

@@ -9,12 +9,16 @@ part of 'chat_message.dart';
 ChatMessage _$ChatMessageFromJson(Map<String, dynamic> json) => ChatMessage(
       role: json['role'] as String,
       content: json['content'] as String,
+      timestamp: json['timestamp'] == null
+          ? null
+          : DateTime.parse(json['timestamp'] as String),
     );
 
 Map<String, dynamic> _$ChatMessageToJson(ChatMessage instance) =>
     <String, dynamic>{
       'role': instance.role,
       'content': instance.content,
+      'timestamp': instance.timestamp?.toIso8601String(),
     };
 
 ChatRequest _$ChatRequestFromJson(Map<String, dynamic> json) => ChatRequest(

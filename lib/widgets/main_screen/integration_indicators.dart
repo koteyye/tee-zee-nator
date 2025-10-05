@@ -56,7 +56,7 @@ class _IntegrationIndicatorsState extends State<IntegrationIndicators> {
           children: [
             // Confluence indicator
             _buildConfluenceIndicator(confluenceConfig),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
 
             // Music generation indicator
             _buildMusicIndicator(musicConfig),
@@ -70,25 +70,18 @@ class _IntegrationIndicatorsState extends State<IntegrationIndicators> {
     final isEnabled = config?.enabled ?? false;
     final isValid = config?.isValid ?? false;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isEnabled && isValid
-            ? Colors.green.withOpacity(0.1)
-            : Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isEnabled && isValid
-              ? Colors.green.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.3),
-        ),
-      ),
+    return Tooltip(
+      message: isEnabled && isValid
+          ? 'Confluence: активно'
+          : 'Confluence: неактивно',
       child: SvgPicture.asset(
         'assets/icons/atlassian.svg',
-        width: 16,
-        height: 16,
+        width: 20,
+        height: 20,
         colorFilter: ColorFilter.mode(
-          isEnabled && isValid ? Colors.green : Colors.grey,
+          isEnabled && isValid
+              ? const Color(0xFF4CAF50) // Зеленый для активного
+              : const Color(0xFF9E9E9E), // Серый для неактивного
           BlendMode.srcIn,
         ),
       ),
@@ -99,28 +92,21 @@ class _IntegrationIndicatorsState extends State<IntegrationIndicators> {
     final isEnabled = config?.enabled ?? false;
     final isValid = config?.isValid ?? false;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: isEnabled && isValid
-            ? Colors.purple.withOpacity(0.1)
-            : Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isEnabled && isValid
-              ? Colors.purple.withOpacity(0.3)
-              : Colors.grey.withOpacity(0.3),
-        ),
-      ),
+    return Tooltip(
+      message: isEnabled && isValid
+          ? 'Музикация: активно'
+          : 'Музикация: неактивно',
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           SvgPicture.asset(
             'assets/icons/music.svg',
-            width: 16,
-            height: 16,
+            width: 20,
+            height: 20,
             colorFilter: ColorFilter.mode(
-              isEnabled && isValid ? Colors.purple : Colors.grey,
+              isEnabled && isValid
+                  ? const Color(0xFF9C27B0) // Фиолетовый для активного
+                  : const Color(0xFF9E9E9E), // Серый для неактивного
               BlendMode.srcIn,
             ),
           ),
@@ -148,7 +134,7 @@ class _IntegrationIndicatorsState extends State<IntegrationIndicators> {
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: Colors.purple,
+                  color: Color(0xFF9C27B0), // Фиолетовый
                 ),
               ),
               const SizedBox(width: 4),
@@ -163,7 +149,7 @@ class _IntegrationIndicatorsState extends State<IntegrationIndicators> {
                 child: const Icon(
                   Icons.refresh,
                   size: 16,
-                  color: Colors.purple,
+                  color: Color(0xFF9C27B0), // Фиолетовый
                 ),
               ),
             ),

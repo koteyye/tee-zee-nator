@@ -10,9 +10,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
   # UI
   cupertino_icons: ^1.0.2
-  flutter_html: ^3.0.0-alpha.6
+  flutter_html: ^3.0.0
   flutter_markdown: ^0.7.7+1
   code_text_field: ^1.1.0
   # HTTP
@@ -31,6 +34,7 @@ dependencies:
   provider: ^6.1.1
   archive: ^4.0.7
   uuid: ^4.0.0
+  package_info_plus: ^8.0.0
   # Security
   flutter_secure_storage: ^10.0.0-beta.4
   crypto: ^3.0.3
@@ -39,7 +43,7 @@ dependencies:
   # Shell commands
   process_run: ^0.14.2
   # URL launcher
-  url_launcher: ^6.3.0
+  url_launcher: ^6.3.2
   # SVG support
   flutter_svg: ^2.0.10+1
   # Path utilities
@@ -56,6 +60,7 @@ dev_dependencies:
   mockito: ^5.4.2
 
 flutter:
+  generate: true
   uses-material-design: true
   assets:
     - assets/

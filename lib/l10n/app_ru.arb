@@ -1,0 +1,453 @@
+{
+  "@@locale": "ru",
+
+  "apply": "Применить",
+  "@apply": {
+    "description": "Кнопка применения изменений"
+  },
+
+  "cancel": "Отменить",
+  "@cancel": {
+    "description": "Кнопка отмены действия"
+  },
+
+  "save": "Сохранить",
+  "@save": {
+    "description": "Кнопка сохранения файла"
+  },
+
+  "openFolder": "Открыть папку",
+  "@openFolder": {
+    "description": "Кнопка открытия папки проекта"
+  },
+
+  "closeTab": "Закрыть вкладку",
+  "@closeTab": {
+    "description": "Кнопка закрытия вкладки"
+  },
+
+  "publishToConfluence": "Опубликовать в Confluence",
+  "@publishToConfluence": {
+    "description": "Кнопка публикации в Confluence"
+  },
+
+  "musicateButton": "Музицировать",
+  "@musicateButton": {
+    "description": "Кнопка запуска музикации"
+  },
+
+  "openInFolder": "Открыть в папке",
+  "@openInFolder": {
+    "description": "Открыть файл в файловом менеджере"
+  },
+
+  "fileExplorer": "Проводник файлов",
+  "@fileExplorer": {
+    "description": "Название панели проводника файлов"
+  },
+
+  "tabBar": "Панель вкладок",
+  "@tabBar": {
+    "description": "Название панели вкладок"
+  },
+
+  "aiChat": "AI Чат",
+  "@aiChat": {
+    "description": "Название AI чат панели"
+  },
+
+  "contentViewer": "Область просмотра",
+  "@contentViewer": {
+    "description": "Название области просмотра содержимого"
+  },
+
+  "toolbar": "Панель инструментов",
+  "@toolbar": {
+    "description": "Название панели инструментов"
+  },
+
+  "statusBar": "Строка состояния",
+  "@statusBar": {
+    "description": "Название строки состояния"
+  },
+
+  "fileModified": "Изменен",
+  "@fileModified": {
+    "description": "Статус файла - изменен"
+  },
+
+  "fileSaved": "Сохранен",
+  "@fileSaved": {
+    "description": "Статус файла - сохранен"
+  },
+
+  "filePending": "Ожидает подтверждения",
+  "@filePending": {
+    "description": "Статус файла - ожидает подтверждения"
+  },
+
+  "fileAccepted": "Принято",
+  "@fileAccepted": {
+    "description": "Статус файла - изменения приняты"
+  },
+
+  "fileRejected": "Отклонено",
+  "@fileRejected": {
+    "description": "Статус файла - изменения отклонены"
+  },
+
+  "aiChatModeNew": "Новое ТЗ",
+  "@aiChatModeNew": {
+    "description": "Режим AI чата - создание нового ТЗ"
+  },
+
+  "aiChatModeAmendments": "Дополнения",
+  "@aiChatModeAmendments": {
+    "description": "Режим AI чата - дополнения к существующему ТЗ"
+  },
+
+  "aiChatModeAnalysis": "Анализ",
+  "@aiChatModeAnalysis": {
+    "description": "Режим AI чата - анализ ТЗ"
+  },
+
+  "errorOpeningFile": "Ошибка открытия файла: {fileName}",
+  "@errorOpeningFile": {
+    "description": "Сообщение об ошибке при открытии файла",
+    "placeholders": {
+      "fileName": {
+        "type": "String",
+        "description": "Имя файла"
+      }
+    }
+  },
+
+  "fileSavedSuccess": "Файл успешно сохранен",
+  "@fileSavedSuccess": {
+    "description": "Сообщение об успешном сохранении файла"
+  },
+
+  "changesApplied": "Изменения применены",
+  "@changesApplied": {
+    "description": "Сообщение об успешном применении изменений"
+  },
+
+  "changesCancelled": "Изменения отменены",
+  "@changesCancelled": {
+    "description": "Сообщение об отмене изменений"
+  },
+
+  "confluenceIntegrationActive": "Confluence: активно",
+  "@confluenceIntegrationActive": {
+    "description": "Статус интеграции Confluence - активна"
+  },
+
+  "confluenceIntegrationInactive": "Confluence: неактивно",
+  "@confluenceIntegrationInactive": {
+    "description": "Статус интеграции Confluence - неактивна"
+  },
+
+  "appVersion": "Версия {version}",
+  "@appVersion": {
+    "description": "Версия приложения",
+    "placeholders": {
+      "version": {
+        "type": "String",
+        "description": "Номер версии"
+      }
+    }
+  },
+
+  "createdBy": "Создано {author}",
+  "@createdBy": {
+    "description": "Информация об авторе",
+    "placeholders": {
+      "author": {
+        "type": "String",
+        "description": "Имя автора"
+      }
+    }
+  },
+
+  "confluenceActive": "Confluence: активно",
+  "@confluenceActive": {
+    "description": "Tooltip для индикатора Confluence - активно"
+  },
+
+  "confluenceInactive": "Confluence: неактивно",
+  "@confluenceInactive": {
+    "description": "Tooltip для индикатора Confluence - неактивно"
+  },
+
+  "musicActive": "Музикация: активно",
+  "@musicActive": {
+    "description": "Tooltip для индикатора Музикации - активно"
+  },
+
+  "musicInactive": "Музикация: неактивно",
+  "@musicInactive": {
+    "description": "Tooltip для индикатора Музикации - неактивно"
+  },
+
+  "musicActiveWithBalance": "Музикация: активно (баланс: {balance}₽)",
+  "@musicActiveWithBalance": {
+    "description": "Tooltip для индикатора Музикации с балансом",
+    "placeholders": {
+      "balance": {
+        "type": "String",
+        "description": "Баланс счета"
+      }
+    }
+  },
+
+  "menu": "Меню",
+  "@menu": {
+    "description": "Tooltip для кнопки меню"
+  },
+
+  "errorOpeningProject": "Ошибка открытия проекта: {error}",
+  "@errorOpeningProject": {
+    "description": "Сообщение об ошибке при открытии проекта",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "description": "Текст ошибки"
+      }
+    }
+  },
+
+  "projectRefreshed": "Проект обновлен",
+  "@projectRefreshed": {
+    "description": "Сообщение об успешном обновлении проекта"
+  },
+
+  "errorRefreshingProject": "Ошибка обновления: {error}",
+  "@errorRefreshingProject": {
+    "description": "Сообщение об ошибке при обновлении проекта",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "description": "Текст ошибки"
+      }
+    }
+  },
+
+  "contentAppliedSuccessfully": "Контент успешно применен",
+  "@contentAppliedSuccessfully": {
+    "description": "Сообщение об успешном применении контента"
+  },
+
+  "errorApplyingContent": "Ошибка применения: {error}",
+  "@errorApplyingContent": {
+    "description": "Сообщение об ошибке при применении контента",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "description": "Текст ошибки"
+      }
+    }
+  },
+
+  "contentRejected": "Контент отклонен",
+  "@contentRejected": {
+    "description": "Сообщение об отклонении контента"
+  },
+
+  "generatedContentAwaitingApproval": "Сгенерированный контент ожидает одобрения",
+  "@generatedContentAwaitingApproval": {
+    "description": "Сообщение о том, что сгенерированный контент ожидает одобрения"
+  },
+
+  "openAIChat": "Открыть AI Чат (Ctrl+Shift+A)",
+  "@openAIChat": {
+    "description": "Tooltip для кнопки открытия AI чата"
+  },
+
+  "projectOpened": "Проект \"{projectName}\" открыт",
+  "@projectOpened": {
+    "description": "Сообщение об успешном открытии проекта",
+    "placeholders": {
+      "projectName": {
+        "type": "String",
+        "description": "Название проекта"
+      }
+    }
+  },
+
+  "errorSavingFile": "Ошибка сохранения: {error}",
+  "@errorSavingFile": {
+    "description": "Сообщение об ошибке при сохранении файла",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "description": "Текст ошибки"
+      }
+    }
+  },
+
+  "fileEmptyOrNotLoaded": "Файл пуст или не загружен",
+  "@fileEmptyOrNotLoaded": {
+    "description": "Сообщение об ошибке - файл пуст или не загружен"
+  },
+
+  "maxOpenTabsReached": "Максимум открытых вкладок: {maxTabs}",
+  "@maxOpenTabsReached": {
+    "description": "Сообщение о достижении максимального количества вкладок",
+    "placeholders": {
+      "maxTabs": {
+        "type": "int",
+        "description": "Максимальное количество вкладок"
+      }
+    }
+  },
+
+  "unsavedChangesTitle": "Несохраненные изменения",
+  "@unsavedChangesTitle": {
+    "description": "Заголовок диалога о несохраненных изменениях"
+  },
+
+  "unsavedChangesMessage": "У вас есть несохраненные изменения в {fileName}. Сохранить перед закрытием?",
+  "@unsavedChangesMessage": {
+    "description": "Сообщение диалога о несохраненных изменениях",
+    "placeholders": {
+      "fileName": {
+        "type": "String",
+        "description": "Имя файла"
+      }
+    }
+  },
+
+  "dontSave": "Не сохранять",
+  "@dontSave": {
+    "description": "Кнопка 'Не сохранять' в диалоге"
+  },
+
+  "errorRevertingChanges": "Ошибка отмены изменений: {error}",
+  "@errorRevertingChanges": {
+    "description": "Сообщение об ошибке при отмене изменений",
+    "placeholders": {
+      "error": {
+        "type": "String",
+        "description": "Текст ошибки"
+      }
+    }
+  },
+
+  "quickSearchInDevelopment": "Быстрый поиск файлов (в разработке)",
+  "@quickSearchInDevelopment": {
+    "description": "Сообщение о том, что быстрый поиск в разработке"
+  },
+
+  "findInFileInDevelopment": "Поиск в файле (в разработке)",
+  "@findInFileInDevelopment": {
+    "description": "Сообщение о том, что поиск в файле в разработке"
+  },
+
+  "errorDirectoryNotFound": "Директория не найдена",
+  "@errorDirectoryNotFound": {
+    "description": "Ошибка - директория не найдена"
+  },
+
+  "errorDirectoryAccessDenied": "Нет доступа к директории",
+  "@errorDirectoryAccessDenied": {
+    "description": "Ошибка - нет прав доступа к директории"
+  },
+
+  "errorTooManyFiles": "Слишком много файлов в проекте (максимум {maxFiles})",
+  "@errorTooManyFiles": {
+    "description": "Ошибка - слишком много файлов в проекте",
+    "placeholders": {
+      "maxFiles": {
+        "type": "int",
+        "description": "Максимальное количество файлов"
+      }
+    }
+  },
+
+  "errorNoSupportedFiles": "В директории не найдено поддерживаемых файлов",
+  "@errorNoSupportedFiles": {
+    "description": "Ошибка - нет поддерживаемых файлов в директории"
+  },
+
+  "errorFileNotFound": "Файл не найден",
+  "@errorFileNotFound": {
+    "description": "Ошибка - файл не найден"
+  },
+
+  "errorFileTooBig": "Файл слишком большой (максимум {maxSizeMb} MB)",
+  "@errorFileTooBig": {
+    "description": "Ошибка - файл слишком большой",
+    "placeholders": {
+      "maxSizeMb": {
+        "type": "int",
+        "description": "Максимальный размер файла в мегабайтах"
+      }
+    }
+  },
+
+  "errorFileReadPermission": "Нет прав для чтения файла",
+  "@errorFileReadPermission": {
+    "description": "Ошибка - нет прав для чтения файла"
+  },
+
+  "errorAiInvalidResponse": "Получен невалидный ответ от AI",
+  "@errorAiInvalidResponse": {
+    "description": "Ошибка - невалидный ответ от AI"
+  },
+
+  "errorAiNetworkError": "Ошибка сети при обращении к AI",
+  "@errorAiNetworkError": {
+    "description": "Ошибка - проблемы с сетью при обращении к AI"
+  },
+
+  "errorAiTimeout": "Превышено время ожидания ответа от AI",
+  "@errorAiTimeout": {
+    "description": "Ошибка - таймаут при обращении к AI"
+  },
+
+  "errorGeneric": "Произошла ошибка: {message}",
+  "@errorGeneric": {
+    "description": "Общее сообщение об ошибке",
+    "placeholders": {
+      "message": {
+        "type": "String",
+        "description": "Текст ошибки"
+      }
+    }
+  },
+
+  "retryAction": "Повторить",
+  "@retryAction": {
+    "description": "Кнопка повторить действие"
+  },
+
+  "settings": "Настройки",
+  "@settings": {
+    "description": "Настройки приложения"
+  },
+
+  "templates": "Шаблоны",
+  "@templates": {
+    "description": "Шаблоны требований"
+  },
+
+  "about": "О программе",
+  "@about": {
+    "description": "О программе"
+  },
+
+  "aboutDialogTitle": "О программе TeeZeeNator",
+  "@aboutDialogTitle": {
+    "description": "Заголовок диалога о программе"
+  },
+
+  "aboutDialogCreator": "Создатель: Koteyye",
+  "@aboutDialogCreator": {
+    "description": "Информация о создателе"
+  },
+
+  "close": "Закрыть",
+  "@close": {
+    "description": "Закрыть окно"
+  }
+}

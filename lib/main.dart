@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 import 'models/app_config.dart';
 import 'models/template.dart';
 import 'models/output_format.dart';
@@ -10,9 +12,16 @@ import 'models/spec_music_config.dart';
 import 'services/config_service.dart';
 import 'services/template_service.dart';
 import 'services/llm_service.dart';
+import 'services/streaming_llm_service.dart';
 import 'services/confluence_service.dart';
+import 'services/app_info_service.dart';
+import 'services/project_service.dart';
+import 'services/file_explorer_service.dart';
+import 'services/file_modification_service.dart';
+import 'services/ai_chat_service.dart';
+import 'services/content_renderer_service.dart';
 import 'screens/setup_screen.dart';
-import 'screens/main_screen.dart';
+import 'screens/ide_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
@@ -51,9 +60,21 @@ void main() async {
   safeRegister<SpecMusicConfig>(SpecMusicConfigAdapter(), 'SpecMusicConfigAdapter');
   safeRegister<Template>(TemplateAdapter(), 'TemplateAdapter');
 
+    // Инициализируем AppInfoService
+    final appInfoService = AppInfoService();
+    try {
+      await appInfoService.init();
+    } catch (e, st) {
+      debugPrint('[main] AppInfoService.init error: $e');
+      debugPrint(st.toString());
+    }
+
     // НЕ блокируем первый кадр await-ом init(). Инициализация пройдет уже внутри FutureBuilder.
     final preConfigService = ConfigService();
-    runApp(MyApp(preInitialized: preConfigService));
+    runApp(MyApp(
+      preInitialized: preConfigService,
+      appInfoService: appInfoService,
+    ));
   }, (error, stack) {
     debugPrint('[ZoneError] $error');
     debugPrint(stack.toString());
@@ -62,7 +83,12 @@ void main() async {
 
 class MyApp extends StatefulWidget {
   final ConfigService preInitialized;
-  const MyApp({super.key, required this.preInitialized});
+  final AppInfoService appInfoService;
+  const MyApp({
+    super.key,
+    required this.preInitialized,
+    required this.appInfoService,
+  });
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -75,15 +101,66 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Основные сервисы
         ChangeNotifierProvider(create: (_) => widget.preInitialized),
         ChangeNotifierProvider(create: (_) => TemplateService()),
         ChangeNotifierProvider(create: (_) => LLMService()),
         ChangeNotifierProvider(create: (_) => ConfluenceService()),
+        Provider<AppInfoService>.value(value: widget.appInfoService),
+        
+        // StreamingLLMService (не ChangeNotifier, простой Provider)
+        ProxyProvider<LLMService, StreamingLLMService>(
+          update: (context, llm, previous) => StreamingLLMService(llmService: llm),
+        ),
+        
+        // Новые сервисы для IDE (с зависимостями)
+        ChangeNotifierProvider(create: (_) => ProjectService()),
+        ChangeNotifierProvider(create: (_) => FileExplorerService()),
+        Provider(create: (_) => ContentRendererService()),
+        ChangeNotifierProxyProvider<ProjectService, FileModificationService>(
+          create: (context) => FileModificationService(
+            context.read<ProjectService>(),
+          ),
+          update: (context, projectService, previous) =>
+              previous ?? FileModificationService(projectService),
+        ),
+        ChangeNotifierProxyProvider4<
+          StreamingLLMService,
+          ConfluenceService,
+          FileModificationService,
+          ProjectService,
+          AIChatService
+        >(
+          create: (context) => AIChatService(
+            llmService: context.read<StreamingLLMService>(),
+            confluenceService: context.read<ConfluenceService>(),
+            fileModificationService: context.read<FileModificationService>(),
+            projectService: context.read<ProjectService>(),
+          ),
+          update: (context, llm, confluence, fileMod, project, previous) =>
+              previous ?? AIChatService(
+                llmService: llm,
+                confluenceService: confluence,
+                fileModificationService: fileMod,
+                projectService: project,
+              ),
+        ),
       ],
       child: Builder(
         builder: (innerContext) => MaterialApp(
           title: 'TeeZeeNator',
           theme: AppTheme.light,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: const [
+            Locale('ru'),
+            Locale('en'),
+          ],
+          locale: const Locale('ru'),
           home: FutureBuilder<bool>(
             key: ValueKey(_reloadToken),
             // Первая инициализация сервисов с таймаутом, чтобы не зависнуть навсегда при проблемах с файловой системой / Hive
@@ -137,7 +214,14 @@ class _MyAppState extends State<MyApp> {
                 );
               }
               final hasConfig = snapshot.data ?? false;
-              return hasConfig ? const MainScreen() : const SetupScreen();
+              
+              if (!hasConfig) {
+                return const SetupScreen();
+              }
+              
+              // Возвращаем новый IDE-интерфейс
+              // TODO: Добавить переключатель в AppConfig при необходимости
+              return const IDEScreen();
             },
           ),
         ),

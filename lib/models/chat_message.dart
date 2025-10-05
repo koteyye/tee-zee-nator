@@ -6,12 +6,14 @@ part 'chat_message.g.dart';
 class ChatMessage {
   final String role;
   final String content;
-  
+  final DateTime? timestamp;
+
   ChatMessage({
     required this.role,
     required this.content,
-  });
-  
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
   factory ChatMessage.fromJson(Map<String, dynamic> json) => _$ChatMessageFromJson(json);
   Map<String, dynamic> toJson() => _$ChatMessageToJson(this);
 }
