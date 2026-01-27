@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:async';
 import '../models/openai_model.dart';
 import '../models/chat_message.dart';
@@ -20,6 +19,33 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
   String? _error;
   
   OpenAIProvider(this._config);
+
+  String _resolveModel(String? model) {
+    if (model != null && model.isNotEmpty && model != 'default') {
+      return model;
+    }
+    final cfg = _config.defaultModel;
+    if (cfg != null && cfg.isNotEmpty && cfg != 'default') {
+      return cfg;
+    }
+    if (_availableModels.isNotEmpty) {
+      return _availableModels.first;
+    }
+    return 'gpt-4o';
+  }
+
+  String _extractDetails(DioException e) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      final error = data['error'];
+      if (error is Map<String, dynamic> && error['message'] != null) {
+        return error['message'].toString();
+      }
+      if (data['message'] != null) return data['message'].toString();
+    }
+    if (data != null) return data.toString();
+    return e.message ?? 'DioException';
+  }
 
   // Returns normalized base URL (no trailing slash, protocol + host/path as given)
   String get _baseUrl {
@@ -138,23 +164,38 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
         ChatMessage(role: 'user', content: userPrompt),
       ];
       
-      final request = ChatRequest(
-        model: model ?? _config.defaultModel ?? _availableModels.first,
-        messages: messages,
-        maxTokens: maxTokens ?? 4000,
-        temperature: temperature ?? 0.7,
-      );
-      
-      final response = await _dio.post(
-        _endpoint('chat/completions'),
-        data: request.toJson(),
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer ${_config.apiToken}',
-            'Content-Type': 'application/json',
-          },
-        ),
-      );
+      Future<Response> postOnce(int tokens) {
+        final request = ChatRequest(
+          model: _resolveModel(model),
+          messages: messages,
+          maxTokens: tokens,
+          temperature: temperature ?? 0.7,
+        );
+        return _dio.post(
+          _endpoint('chat/completions'),
+          data: request.toJson(),
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${_config.apiToken}',
+              'Content-Type': 'application/json',
+            },
+          ),
+        );
+      }
+
+      final initialTokens = maxTokens ?? 4000;
+      Response response;
+      try {
+        response = await postOnce(initialTokens);
+      } on DioException catch (e) {
+        final details = _extractDetails(e);
+        final status = e.response?.statusCode;
+        final shouldRetry = status == 400 &&
+            details.toLowerCase().contains('reduce the length') &&
+            initialTokens > 1024;
+        if (!shouldRetry) rethrow;
+        response = await postOnce(1024);
+      }
       
       if (response.statusCode == 200) {
         final chatResponse = ChatResponse.fromJson(response.data);
@@ -165,6 +206,12 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
       
       throw Exception('Пустой ответ от OpenAI API');
     } catch (e) {
+      if (e is DioException) {
+        final status = e.response?.statusCode;
+        final details = _extractDetails(e);
+        _error = 'Ошибка при отправке запроса: ${status ?? 'no-status'} $details';
+        throw Exception('OpenAI request failed (${status ?? 'no-status'}): $details');
+      }
       _error = 'Ошибка при отправке запроса: $e';
       rethrow;
     } finally {
@@ -190,7 +237,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
     ];
 
     final requestMap = {
-      'model': model ?? _config.defaultModel ?? (_availableModels.isNotEmpty ? _availableModels.first : 'gpt-4o'),
+      'model': _resolveModel(model),
       'messages': messages.map((m) => m.toJson()).toList(),
       'temperature': temperature ?? 0.7,
       if (maxTokens != null) 'max_tokens': maxTokens,
@@ -198,7 +245,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
     };
 
     Response<ResponseBody> response;
-    Future<Response<ResponseBody>> _doStreamCall(String path) {
+    Future<Response<ResponseBody>> doStreamCall(String path) {
       return _dio.post<ResponseBody>(
         _endpoint(path),
         data: jsonEncode(requestMap),
@@ -216,7 +263,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
       );
     }
     try {
-      response = await _doStreamCall('chat/completions');
+      response = await doStreamCall('chat/completions');
     } on DioException catch (e) {
       // Retry heuristics for 404 (common with mis-specified base URL or missing /v1)
       final status = e.response?.statusCode;
@@ -247,7 +294,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
           // Heuristic 2: If base missing /v1, try adding it
             try {
               response = await _dio.post<ResponseBody>(
-                '${_baseUrl}/v1/chat/completions',
+                '$_baseUrl/v1/chat/completions',
                 data: jsonEncode(requestMap),
                 options: Options(
                   headers: {
@@ -276,9 +323,7 @@ class OpenAIProvider implements LLMProvider, LLMStreamingProvider {
 
     // The stream is SSE style: lines starting with 'data: '
     final stream = response.data!.stream
-        .transform(StreamTransformer<Uint8List, String>.fromHandlers(handleData: (data, sink) {
-          sink.add(utf8.decode(data));
-        }))
+        .map((bytes) => utf8.decode(bytes))
         .transform(const LineSplitter());
 
     final StringBuffer assembled = StringBuffer();

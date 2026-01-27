@@ -179,7 +179,7 @@ class _TemplateDropdownState extends State<_TemplateDropdown> {
     }
     
     return DropdownButtonFormField<Template>(
-      value: currentValue,
+      initialValue: currentValue,
       decoration: const InputDecoration(
         labelText: 'Активный шаблон',
         border: OutlineInputBorder(),

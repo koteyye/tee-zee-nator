@@ -2,7 +2,7 @@ name: tee_zee_nator
 description: Генератор технических заданий с использованием OpenAI API
 publish_to: 'none'
 
-version: 1.2.2+3
+version: 1.2.3+4
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -44,13 +44,14 @@ dependencies:
   flutter_svg: ^2.0.10+1
   # Path utilities
   path: ^1.9.0
+  package_info_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.4.7
-  json_serializable: ^6.9.0
+  json_serializable: ^6.8.0
   hive_generator: ^2.0.1
   flutter_launcher_icons: ^0.14.4
   mockito: ^5.4.2

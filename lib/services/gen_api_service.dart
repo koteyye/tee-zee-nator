@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
 import '../models/gen_api_models.dart';
-import '../models/music_generation_session.dart';
 import '../exceptions/content_processing_exceptions.dart';
 import 'music_generation_interface.dart';
 
@@ -31,6 +30,7 @@ class GenApiService implements IMusicGenerationService {
     'Authorization': 'Bearer $apiKey',
   };
 
+  @override
   Future<GenApiUserInfo> getUserInfo() async {
     try {
       final response = await _httpClient.get(
@@ -52,6 +52,7 @@ class GenApiService implements IMusicGenerationService {
     }
   }
 
+  @override
   Future<GenApiResponse> generateMusic({
     required String title,
     required String tags,
@@ -102,6 +103,7 @@ class GenApiService implements IMusicGenerationService {
     }
   }
 
+  @override
   Future<GenApiResponse> getRequestStatus(String requestId) async {
     try {
       final response = await _httpClient.get(
@@ -127,6 +129,7 @@ class GenApiService implements IMusicGenerationService {
     }
   }
 
+  @override
   Future<List<String>> downloadMusicFiles({
     required List<String> audioUrls,
     required String sessionId,
@@ -180,16 +183,19 @@ class GenApiService implements IMusicGenerationService {
     return digest.toString().substring(0, 8);
   }
 
+  @override
   String generateSessionId(String requirements) {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
     final input = '$requirements$timestamp';
     return _generateShortHash(input);
   }
 
+  @override
   String generateRequirementsHash(String requirements) {
     return _generateShortHash(requirements);
   }
 
+  @override
   void dispose() {
     _httpClient.close();
   }

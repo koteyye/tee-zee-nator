@@ -66,7 +66,7 @@ class TemplateReviewController extends ChangeNotifier {
       } else if (parsed != null && parsed is Map && parsed['event'] == 'text') {
         final delta = parsed['delta'];
         if (delta is String) {
-          reviewText += delta + '\n';
+          reviewText += '$delta\n';
         }
       } else {
         // Fallback: treat as raw text (legacy models w/o NDJSON compliance)

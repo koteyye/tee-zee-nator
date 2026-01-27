@@ -82,43 +82,7 @@ class StreamingLLMService {
           final started = DateTime.now();
           _activeCancelToken = CancelToken();
 
-          final buffer = StringBuffer();
           bool gotFinal = false;
-
-          Future<void> processCompleteLines() async {
-            final text = buffer.toString();
-            final lines = text.split('\n');
-            // Keep last partial (if no trailing newline)
-            final completeCount = text.endsWith('\n') ? lines.length : lines.length - 1;
-            for (int i = 0; i < completeCount; i++) {
-              final raw = lines[i].trim();
-              if (raw.isEmpty) continue;
-              try {
-                final obj = jsonDecode(raw);
-                if (obj is Map<String, dynamic> && obj['stream_type'] is String) {
-                  final type = obj['stream_type'];
-                  if (type == 'status' || type == 'content' || type == 'final') {
-                    // Ensure progress for final
-                    if (type == 'final') {
-                      gotFinal = true;
-                      obj.putIfAbsent('progress', () => 100);
-                    }
-                    addJson(obj);
-                  }
-                }
-              } catch (_) {
-                // Ignore malformed (likely partial) lines
-              }
-            }
-            // Rebuild buffer with remaining partial (if any)
-            if (!text.endsWith('\n')) {
-              buffer
-                ..clear()
-                ..write(lines.last);
-            } else {
-              buffer.clear();
-            }
-          }
 
           await for (final chunk in streamingProvider.streamChat(
             systemPrompt: prompts['system']!,
@@ -127,8 +91,13 @@ class StreamingLLMService {
             cancelToken: _activeCancelToken,
           )) {
             if (chunk is LLMStreamChunkDelta) {
-              buffer.write(chunk.delta);
-              await processCompleteLines();
+              final delta = chunk.delta;
+              if (delta.isNotEmpty) {
+                addJson({
+                  'stream_type': 'content',
+                  'append': delta,
+                });
+              }
             } else if (chunk is LLMStreamChunkError) {
               addJson({
                 'stream_type': 'status',
@@ -146,11 +115,6 @@ class StreamingLLMService {
               gotFinal = true;
               break;
             } else if (chunk is LLMStreamChunkFinal) {
-              // Flush remaining buffer (may contain last JSON)
-              if (buffer.isNotEmpty) {
-                buffer.write('\n');
-                await processCompleteLines();
-              }
               if (!gotFinal) {
                 addJson({
                   'stream_type': 'status',
@@ -315,7 +279,7 @@ class StreamingLLMService {
     return rawChunks
         .map((c) => c.trim())
         .where((c) => c.isNotEmpty)
-        .map((c) => c + '\n\n')
+        .map((c) => '$c\n\n')
         .toList();
   }
 }

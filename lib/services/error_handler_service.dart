@@ -513,7 +513,7 @@ class ErrorHandlerService {
       }
     }
     
-    // Check for incomplete responses
+    // Check for incomplete responses only at the end of output
     final incompletePatterns = [
       '...',
       '[продолжение следует]',
@@ -521,14 +521,16 @@ class ErrorHandlerService {
       'и так далее',
       'etc.',
     ];
-    
+    final trimmed = response.trim();
+    final lastLine = trimmed.split(RegExp(r'[\r\n]+')).last.trim().toLowerCase();
     for (final pattern in incompletePatterns) {
-      if (response.toLowerCase().contains(pattern.toLowerCase())) {
+      final lowerPattern = pattern.toLowerCase();
+      if (lastLine == lowerPattern || lastLine.endsWith(lowerPattern)) {
         throw LLMResponseValidationException(
           'AI вернул неполный ответ',
           response,
           recoveryAction: 'Попробуйте повторить генерацию или увеличьте лимит токенов в настройках',
-          technicalDetails: 'Incomplete response pattern detected: $pattern',
+          technicalDetails: 'Incomplete response pattern detected at end: $pattern',
         );
       }
     }

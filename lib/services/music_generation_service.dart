@@ -7,7 +7,6 @@ import 'package:uuid/uuid.dart';
 
 import '../models/music_generation_session.dart';
 import '../models/spec_music_config.dart';
-import '../models/gen_api_models.dart';
 import '../services/gen_api_service.dart';
 import '../services/mock_gen_api_service.dart';
 import '../services/music_generation_interface.dart';

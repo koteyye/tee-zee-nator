@@ -100,7 +100,7 @@ class _EditableTemplateSelectorState extends State<EditableTemplateSelector> {
         }
 
         return DropdownButtonFormField<Template>(
-          value: currentValue,
+          initialValue: currentValue,
           decoration: const InputDecoration(
             labelText: 'Выберите шаблон для редактирования',
             border: OutlineInputBorder(),

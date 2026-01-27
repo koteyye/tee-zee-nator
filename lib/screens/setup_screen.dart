@@ -623,7 +623,7 @@ class _SetupScreenState extends State<SetupScreen> {
               
               // Выбор провайдера
               DropdownButtonFormField<String>(
-                value: _selectedProvider,
+                initialValue: _selectedProvider,
                 decoration: const InputDecoration(
                   labelText: 'Провайдер LLM',
                   border: OutlineInputBorder(),

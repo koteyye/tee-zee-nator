@@ -394,7 +394,7 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
                   Switch(
                     value: _isEnabled,
                     onChanged: _onToggleChanged,
-                    activeColor: AppTheme.primaryRed,
+                    activeThumbColor: AppTheme.primaryRed,
                   ),
                 ],
               ),
