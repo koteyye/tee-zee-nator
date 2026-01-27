@@ -436,6 +436,11 @@ class _InputPanelState extends State<InputPanel> {
   
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fieldBorderColor = isDark ? Colors.grey.shade600 : AppTheme.borderGray;
+    final fieldBg = isDark ? AppTheme.darkSurface : Colors.white;
+    final fieldTextColor = isDark ? Colors.white : Colors.black;
+    final hintColor = isDark ? Colors.grey.shade500 : Colors.grey.shade500;
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
@@ -494,12 +499,12 @@ class _InputPanelState extends State<InputPanel> {
                     child: Container(
                       height: widget.generatedTz.isEmpty ? 200 : 120,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: fieldBg,
                         border: Border.all(
                           color: _isProcessingRawRequirements 
                               ? AppTheme.primaryRed.withOpacity(0.5)
-                              : AppTheme.borderGray,
-                          width: _isProcessingRawRequirements ? 2 : 1,
+                              : fieldBorderColor,
+                          width: 1,
                         ),
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: _isProcessingRawRequirements ? [
@@ -517,14 +522,14 @@ class _InputPanelState extends State<InputPanel> {
                           maxLines: null,
                           expands: true,
                           textAlignVertical: TextAlignVertical.top,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: Colors.black,
+                            color: fieldTextColor,
                           ),
                           decoration: InputDecoration(
                             border: InputBorder.none,
                             hintText: 'Введите сырые требования...',
-                            hintStyle: TextStyle(color: Colors.grey.shade500),
+                            hintStyle: TextStyle(color: hintColor),
                             suffixIcon: widget.rawRequirementsController.text.isNotEmpty
                                 ? IconButton(
                                     icon: const Icon(Icons.clear, size: 18),
@@ -597,12 +602,12 @@ class _InputPanelState extends State<InputPanel> {
                       child: Container(
                         height: 100,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                        color: fieldBg,
                           border: Border.all(
                             color: _isProcessingChanges 
                                 ? AppTheme.primaryRed.withOpacity(0.5)
-                                : AppTheme.borderGray,
-                            width: _isProcessingChanges ? 2 : 1,
+                              : fieldBorderColor,
+                          width: 1,
                           ),
                           borderRadius: BorderRadius.circular(8),
                           boxShadow: _isProcessingChanges ? [
@@ -620,14 +625,14 @@ class _InputPanelState extends State<InputPanel> {
                             maxLines: null,
                             expands: true,
                             textAlignVertical: TextAlignVertical.top,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black,
-                            ),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: fieldTextColor,
+                          ),
                             decoration: InputDecoration(
                               border: InputBorder.none,
                               hintText: 'Введите изменения или дополнения...',
-                              hintStyle: TextStyle(color: Colors.grey.shade500),
+                            hintStyle: TextStyle(color: hintColor),
                               suffixIcon: widget.changesController.text.isNotEmpty
                                   ? IconButton(
                                       icon: const Icon(Icons.clear, size: 18),
@@ -733,7 +738,7 @@ class _InputPanelState extends State<InputPanel> {
                       return visible * 70.0; // 4 items => 280px
                     })(),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: fieldBorderColor),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: ListView.builder(

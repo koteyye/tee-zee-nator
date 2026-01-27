@@ -16,6 +16,33 @@ class GroqProvider implements LLMProvider {
   String? _error;
   
   GroqProvider(this._config);
+
+  String _resolveModel(String? model) {
+    if (model != null && model.isNotEmpty && model != 'default') {
+      return model;
+    }
+    final cfg = _config.defaultModel;
+    if (cfg != null && cfg.isNotEmpty && cfg != 'default') {
+      return cfg;
+    }
+    if (_availableModels.isNotEmpty) {
+      return _availableModels.first;
+    }
+    throw Exception('No available models for Groq');
+  }
+
+  String _extractDetails(DioException e) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      final error = data['error'];
+      if (error is Map<String, dynamic> && error['message'] != null) {
+        return error['message'].toString();
+      }
+      if (data['message'] != null) return data['message'].toString();
+    }
+    if (data != null) return data.toString();
+    return e.message ?? 'DioException';
+  }
   
   @override
   List<String> get availableModels => _availableModels;
@@ -128,29 +155,49 @@ class GroqProvider implements LLMProvider {
     try {
       _isLoading = true;
       _error = null;
+
+      if (_config.groqToken == null || _config.groqToken!.isEmpty) {
+        _error = 'Groq token is not configured';
+        throw Exception('Groq token is not configured');
+      }
       
       final messages = [
         ChatMessage(role: 'system', content: systemPrompt),
         ChatMessage(role: 'user', content: userPrompt),
       ];
-      
-      final request = ChatRequest(
-        model: model ?? _config.defaultModel ?? _availableModels.first,
-        messages: messages,
-        maxTokens: maxTokens ?? 4000,
-        temperature: temperature ?? 0.7,
-      );
-      
-      final response = await _dio.post(
-        '$_baseUrl/chat/completions',
-        data: request.toJson(),
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer ${_config.groqToken}',
-            'Content-Type': 'application/json',
-          },
-        ),
-      );
+
+      Future<Response> postOnce(int tokens) {
+        final request = ChatRequest(
+          model: _resolveModel(model),
+          messages: messages,
+          maxTokens: tokens,
+          temperature: temperature ?? 0.7,
+        );
+        return _dio.post(
+          '$_baseUrl/chat/completions',
+          data: request.toJson(),
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer ${_config.groqToken}',
+              'Content-Type': 'application/json',
+            },
+          ),
+        );
+      }
+
+      final initialTokens = maxTokens ?? 4000;
+      Response response;
+      try {
+        response = await postOnce(initialTokens);
+      } on DioException catch (e) {
+        final details = _extractDetails(e);
+        final status = e.response?.statusCode;
+        final shouldRetry = status == 400 &&
+            details.toLowerCase().contains('reduce the length') &&
+            initialTokens > 1024;
+        if (!shouldRetry) rethrow;
+        response = await postOnce(1024);
+      }
       
       if (response.statusCode == 200) {
         final chatResponse = ChatResponse.fromJson(response.data);
@@ -161,6 +208,12 @@ class GroqProvider implements LLMProvider {
       
       throw Exception('Пустой ответ от Groq');
     } catch (e) {
+      if (e is DioException) {
+        final status = e.response?.statusCode;
+        final details = _extractDetails(e);
+        _error = 'Ошибка при отправке запроса: ${status ?? 'no-status'} $details';
+        throw Exception('Groq request failed (${status ?? 'no-status'}): $details');
+      }
       _error = 'Ошибка при отправке запроса: $e';
       rethrow;
     } finally {

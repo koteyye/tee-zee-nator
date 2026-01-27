@@ -392,33 +392,33 @@ class KeyboardShortcutsWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return UserGuidanceWidget(
-      title: 'Keyboard Shortcuts',
-      message: 'Speed up your workflow with these shortcuts',
+      title: 'Горячие клавиши',
+      message: 'Ускорьте работу с помощью этих сочетаний',
       icon: Icons.keyboard,
       backgroundColor: Colors.purple.shade50,
       steps: const [
         GuidanceStep(
-          title: 'Ctrl+Enter - Generate/Update specification',
+          title: 'Ctrl+Enter - Сгенерировать / обновить ТЗ',
           isCompleted: true,
         ),
         GuidanceStep(
-          title: 'Ctrl+S - Save specification to file',
+          title: 'Ctrl+S - Сохранить ТЗ в файл',
           isCompleted: true,
         ),
         GuidanceStep(
-          title: 'Ctrl+C - Copy specification to clipboard',
+          title: 'Ctrl+C - Скопировать ТЗ в буфер',
           isCompleted: true,
         ),
         GuidanceStep(
-          title: 'Ctrl+P - Publish to Confluence (if enabled)',
+          title: 'Ctrl+P - Опубликовать в Confluence (если включено)',
           isCompleted: true,
         ),
         GuidanceStep(
-          title: 'Ctrl+R - Clear all fields',
+          title: 'Ctrl+R - Очистить все поля',
           isCompleted: true,
         ),
         GuidanceStep(
-          title: 'F1 - Show help',
+          title: 'F1 - Показать подсказку',
           isCompleted: true,
         ),
       ],

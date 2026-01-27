@@ -11,6 +11,7 @@ import 'services/config_service.dart';
 import 'services/template_service.dart';
 import 'services/llm_service.dart';
 import 'services/confluence_service.dart';
+import 'services/theme_service.dart';
 import 'screens/setup_screen.dart';
 import 'screens/main_screen.dart';
 import 'theme/app_theme.dart';
@@ -79,66 +80,71 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => TemplateService()),
         ChangeNotifierProvider(create: (_) => LLMService()),
         ChangeNotifierProvider(create: (_) => ConfluenceService()),
+        ChangeNotifierProvider(create: (_) => ThemeService()),
       ],
       child: Builder(
-        builder: (innerContext) => MaterialApp(
-          title: 'TeeZeeNator',
-          theme: AppTheme.light,
-          home: FutureBuilder<bool>(
-            key: ValueKey(_reloadToken),
-            // Первая инициализация сервисов с таймаутом, чтобы не зависнуть навсегда при проблемах с файловой системой / Hive
-            future: _initializeServices(innerContext)
-                .timeout(const Duration(seconds: 8), onTimeout: () {
-              debugPrint('[MyApp] _initializeServices timeout — fallback to SetupScreen');
-              return false; // Покажем экран настройки как безопасный fallback
-            }),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Инициализация...')
-                      ],
+        builder: (innerContext) => Consumer<ThemeService>(
+          builder: (context, themeService, child) => MaterialApp(
+            title: 'TeeZeeNator',
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: themeService.mode,
+            home: FutureBuilder<bool>(
+              key: ValueKey(_reloadToken),
+              // Первая инициализация сервисов с таймаутом, чтобы не зависнуть навсегда при проблемах с файловой системой / Hive
+              future: _initializeServices(innerContext)
+                  .timeout(const Duration(seconds: 8), onTimeout: () {
+                debugPrint('[MyApp] _initializeServices timeout — fallback to SetupScreen');
+                return false; // Покажем экран настройки как безопасный fallback
+              }),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Инициализация...')
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }
-              if (snapshot.hasError) {
-                debugPrint('[MyApp] init error: ${snapshot.error}');
-                return Scaffold(
-                  body: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                        const SizedBox(height: 12),
-                        const Text('Проблема инициализации'),
-                        Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Text(
-                            snapshot.error.toString(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  );
+                }
+                if (snapshot.hasError) {
+                  debugPrint('[MyApp] init error: ${snapshot.error}');
+                  return Scaffold(
+                    body: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                          const SizedBox(height: 12),
+                          const Text('Проблема инициализации'),
+                          Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Text(
+                              snapshot.error.toString(),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
                           ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            setState(() { _reloadToken++; }); // Перезапустить FutureBuilder
-                          },
-                          child: const Text('Повторить'),
-                        )
-                      ],
+                          ElevatedButton(
+                            onPressed: () {
+                              setState(() { _reloadToken++; }); // Перезапустить FutureBuilder
+                            },
+                            child: const Text('Повторить'),
+                          )
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              }
-              final hasConfig = snapshot.data ?? false;
-              return hasConfig ? const MainScreen() : const SetupScreen();
-            },
+                  );
+                }
+                final hasConfig = snapshot.data ?? false;
+                return hasConfig ? const MainScreen() : const SetupScreen();
+              },
+            ),
           ),
         ),
       ),
@@ -150,8 +156,11 @@ class _MyAppState extends State<MyApp> {
       // Get service instances from Provider context
       final configService = Provider.of<ConfigService>(context, listen: false);
       final templateService = Provider.of<TemplateService>(context, listen: false);
+      final themeService = Provider.of<ThemeService>(context, listen: false);
       // Ensure config is initialized (early preInit may already have done this)
       await configService.init();
+      final isDark = configService.config?.isDarkTheme ?? true;
+      themeService.setMode(isDark ? ThemeMode.dark : ThemeMode.light);
       
       // Initialize TemplateService
       await templateService.init();

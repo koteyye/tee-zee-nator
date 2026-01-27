@@ -31,13 +31,14 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       cerebrasToken: fields[11] as String?,
       groqToken: fields[12] as String?,
       specMusicConfig: fields[13] as SpecMusicConfig?,
+      isDarkTheme: fields[14] as bool?,
     );
   }
 
   @override
   void write(BinaryWriter writer, AppConfig obj) {
     writer
-      ..writeByte(14)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.apiUrl)
       ..writeByte(1)
@@ -65,7 +66,9 @@ class AppConfigAdapter extends TypeAdapter<AppConfig> {
       ..writeByte(12)
       ..write(obj.groqToken)
       ..writeByte(13)
-      ..write(obj.specMusicConfig);
+      ..write(obj.specMusicConfig)
+      ..writeByte(14)
+      ..write(obj.isDarkTheme);
   }
 
   @override
@@ -101,6 +104,7 @@ AppConfig _$AppConfigFromJson(Map<String, dynamic> json) => AppConfig(
       groqToken: json['groqToken'] as String?,
       specMusicConfig: _specMusicConfigFromJson(
           json['specMusicConfig'] as Map<String, dynamic>?),
+      isDarkTheme: json['isDarkTheme'] as bool? ?? true,
     );
 
 Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
@@ -118,6 +122,7 @@ Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{
       'cerebrasToken': instance.cerebrasToken,
       'groqToken': instance.groqToken,
       'specMusicConfig': _specMusicConfigToJson(instance.specMusicConfig),
+      'isDarkTheme': instance.isDarkTheme,
     };
 
 const _$OutputFormatEnumMap = {

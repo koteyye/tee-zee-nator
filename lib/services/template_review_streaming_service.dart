@@ -93,7 +93,7 @@ class TemplateReviewStreamingService {
           // Simulate chunking by splitting paragraphs
           final parts = const LineSplitter().convert(result);
           for (final p in parts) {
-            controller.add(p + '\n');
+            controller.add('$p\n');
             await Future.delayed(const Duration(milliseconds: 60));
           }
         } catch (e) {
@@ -158,7 +158,7 @@ class TemplateReviewStreamingService {
           format: OutputFormat.markdown,
         );
         for (final p in const LineSplitter().convert(generated)) {
-          controller.add(p + '\n');
+          controller.add('$p\n');
           await Future.delayed(const Duration(milliseconds: 60));
         }
       } catch (e) {

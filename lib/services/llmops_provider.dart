@@ -11,6 +11,33 @@ class LLMOpsProvider implements LLMProvider {
   String? _error;
   
   LLMOpsProvider(this._config);
+
+  String _resolveModel(String? model) {
+    if (model != null && model.isNotEmpty && model != 'default') {
+      return model;
+    }
+    final cfg = _config.llmopsModel;
+    if (cfg != null && cfg.isNotEmpty && cfg != 'default') {
+      return cfg;
+    }
+    if (_availableModels.isNotEmpty) {
+      return _availableModels.first;
+    }
+    return 'llama3';
+  }
+
+  String _extractDetails(DioException e) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      final error = data['error'];
+      if (error is Map<String, dynamic> && error['message'] != null) {
+        return error['message'].toString();
+      }
+      if (data['message'] != null) return data['message'].toString();
+    }
+    if (data != null) return data.toString();
+    return e.message ?? 'DioException';
+  }
   
   @override
   List<String> get availableModels => _availableModels;
@@ -25,8 +52,6 @@ class LLMOpsProvider implements LLMProvider {
   String? get error => _error;
   
   String get _baseUrl => _config.llmopsBaseUrl ?? 'http://localhost:11434';
-  
-  String get _model => _config.llmopsModel ?? 'llama3';
   
   Map<String, String> get _headers {
     final headers = <String, String>{
@@ -129,21 +154,36 @@ class LLMOpsProvider implements LLMProvider {
       _isLoading = true;
       _error = null;
       
-      // Используем endpoint /chat/completions
-      final response = await _dio.post(
-        '$_baseUrl/chat/completions',
-        data: {
-          'model': model ?? _model,
-          'messages': [
-            {'role': 'system', 'content': systemPrompt},
-            {'role': 'user', 'content': userPrompt},
-          ],
-          'max_tokens': maxTokens ?? 2000,
-          'temperature': temperature ?? 0.7,
-          'stream': false,
-        },
-        options: Options(headers: _headers),
-      );
+      Future<Response> postOnce(int tokens) {
+        return _dio.post(
+          '$_baseUrl/chat/completions',
+          data: {
+            'model': _resolveModel(model),
+            'messages': [
+              {'role': 'system', 'content': systemPrompt},
+              {'role': 'user', 'content': userPrompt},
+            ],
+            'max_tokens': tokens,
+            'temperature': temperature ?? 0.7,
+            'stream': false,
+          },
+          options: Options(headers: _headers),
+        );
+      }
+
+      final initialTokens = maxTokens ?? 2000;
+      Response response;
+      try {
+        response = await postOnce(initialTokens);
+      } on DioException catch (e) {
+        final details = _extractDetails(e);
+        final status = e.response?.statusCode;
+        final shouldRetry = status == 400 &&
+            details.toLowerCase().contains('reduce the length') &&
+            initialTokens > 1024;
+        if (!shouldRetry) rethrow;
+        response = await postOnce(1024);
+      }
       
       if (response.statusCode == 200) {
         final responseData = response.data;
@@ -156,6 +196,12 @@ class LLMOpsProvider implements LLMProvider {
       
       throw Exception('Пустой ответ от LLMOps API');
     } catch (e) {
+      if (e is DioException) {
+        final status = e.response?.statusCode;
+        final details = _extractDetails(e);
+        _error = 'Ошибка при отправке запроса: ${status ?? 'no-status'} $details';
+        throw Exception('LLMOps request failed (${status ?? 'no-status'}): $details');
+      }
       _error = 'Ошибка при отправке запроса: $e';
       rethrow;
     } finally {

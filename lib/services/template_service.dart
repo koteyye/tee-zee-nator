@@ -79,7 +79,7 @@ class TemplateService extends ChangeNotifier {
   
   Future<void> _ensureUnifiedDefaultTemplate() async {
     // Helper to try loading from multiple candidate asset names
-    Future<String?> _tryLoadDefaultAsset() async {
+    Future<String?> tryLoadDefaultAsset() async {
       const candidates = ['tz_pattern.md', 'pattern.md'];
       for (final path in candidates) {
         try {
@@ -96,9 +96,9 @@ class TemplateService extends ChangeNotifier {
     }
 
     if (!_templatesBox.containsKey(_defaultKey)) {
-      final content = await _tryLoadDefaultAsset();
+      final content = await tryLoadDefaultAsset();
       if (content != null) {
-        Future<void> _writeDefault() async {
+        Future<void> writeDefault() async {
           final defaultTemplate = Template(
             id: _defaultKey,
             name: 'Шаблон по умолчанию',
@@ -110,13 +110,13 @@ class TemplateService extends ChangeNotifier {
           await _templatesBox.put(_defaultKey, defaultTemplate);
         }
         try {
-          await _writeDefault();
+          await writeDefault();
           log('Unified default template created successfully from asset');
         } catch (e) {
           if (e.toString().contains('unknown type: TemplateFormat')) {
             log('TemplateFormat adapter missing at write time – registering late and retrying');
             try { Hive.registerAdapter<TemplateFormat>(TemplateFormatAdapter()); } catch (_) {}
-            await _writeDefault();
+            await writeDefault();
             log('Unified default template created after late adapter registration');
           } else {
             rethrow;
@@ -143,7 +143,7 @@ class TemplateService extends ChangeNotifier {
       if (existing != null) {
         final looksPlaceholder = existing.content.contains('исходный шаблон не найден') || existing.content.trim().length < 120;
         if (looksPlaceholder) {
-          final content = await _tryLoadDefaultAsset();
+          final content = await tryLoadDefaultAsset();
           if (content != null && content.trim().length > existing.content.trim().length) {
             log('Upgrading placeholder default template with real asset content');
             final upgraded = existing.copyWith(content: content, updatedAt: DateTime.now());

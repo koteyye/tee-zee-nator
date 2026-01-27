@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../services/template_service.dart';
 import '../services/config_service.dart';
 import '../services/llm_service.dart';
+import '../services/theme_service.dart';
 import '../models/app_config.dart';
 import '../models/openai_model.dart';
 import '../models/output_format.dart';
@@ -19,7 +20,7 @@ class SetupScreen extends StatefulWidget {
   _SetupScreenState createState() => _SetupScreenState();
 }
 
-class _SetupScreenState extends State<SetupScreen> {
+class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _urlController = TextEditingController(text: 'https://api.openai.com/v1');
   final _tokenController = TextEditingController();
@@ -47,11 +48,14 @@ class _SetupScreenState extends State<SetupScreen> {
   bool _hideLLMOpsAuth = true;
   bool _hideCerebrasToken = true;
   bool _hideGroqToken = true;
+  bool _isDarkTheme = true;
 
   // Новые переменные состояния для управления кнопками
   bool _isFirstLaunch = false;
   bool _canSave = false;
   bool _allRequiredFieldsFilled = false;
+  AnimationController? _startPulseController;
+  Animation<double>? _startPulse;
 
   Future<void> _pasteInto(TextEditingController c) async {
     final data = await Clipboard.getData('text/plain');
@@ -77,12 +81,14 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   void initState() {
     super.initState();
+    _ensureStartPulseController();
     _detectFirstLaunch();
     _loadCurrentConfig();
   }
 
   @override
   void dispose() {
+    _startPulseController?.dispose();
     _urlController.dispose();
     _tokenController.dispose();
     _llmopsUrlController.dispose();
@@ -115,7 +121,10 @@ class _SetupScreenState extends State<SetupScreen> {
     if (config != null) {
       setState(() {
         _selectedProvider = config.provider;
-        _selectedFormat = config.outputFormat;
+        _selectedFormat = config.outputFormat == OutputFormat.confluence
+            ? OutputFormat.markdown
+            : config.outputFormat;
+        _isDarkTheme = config.isDarkTheme;
         if (_selectedProvider == 'openai') {
           _urlController.text = config.apiUrl;
           _tokenController.text = config.apiToken;
@@ -130,10 +139,17 @@ class _SetupScreenState extends State<SetupScreen> {
   // Помечаем как успешное подключение, если есть валидная конфигурация
   _connectionSuccess = true;
       });
+      final themeService = Provider.of<ThemeService>(context, listen: false);
+      themeService.setMode(_isDarkTheme ? ThemeMode.dark : ThemeMode.light);
 
       // Обновляем состояние кнопок
       _updateSaveAvailability();
       _checkRequiredFields();
+    } else {
+      final themeService = Provider.of<ThemeService>(context, listen: false);
+      setState(() {
+        _isDarkTheme = themeService.isDark;
+      });
     }
   }
   
@@ -252,6 +268,8 @@ class _SetupScreenState extends State<SetupScreen> {
     required String tooltip,
     required VoidCallback? onPressed,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black87;
     return Tooltip(
       message: tooltip,
       child: Container(
@@ -273,6 +291,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 assetPath,
                 width: 20,
                 height: 20,
+                colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
               ),
             ),
           ),
@@ -298,10 +317,32 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Widget _buildStartButton() {
-    return _buildActionButton(
+    final button = _buildActionButton(
       assetPath: 'assets/icons/save.svg', // Используем иконку сохранения для кнопки "Начать"
-      tooltip: 'Начать работу',
+      tooltip: 'Приступить к работе',
       onPressed: _allRequiredFieldsFilled ? _startWork : null,
+    );
+    if (_startPulse == null) return button;
+    if (!_shouldPulseStartButton()) return button;
+    return AnimatedBuilder(
+      animation: _startPulse!,
+      builder: (context, child) {
+        final t = _startPulse!.value;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.redAccent.withOpacity(0.25 + (t * 0.35)),
+                blurRadius: 8 + (t * 10),
+                spreadRadius: 1 + (t * 2),
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: button,
     );
   }
 
@@ -312,7 +353,11 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   bool _shouldShowStartButton() {
-    // Показываем кнопку "Начать" только при первом запуске и если все готово
+    // Показываем кнопку "Начать" только при первом запуске и при минимальной готовности
+    return _isFirstLaunch && _allRequiredFieldsFilled;
+  }
+
+  bool _shouldPulseStartButton() {
     return _isFirstLaunch && _allRequiredFieldsFilled;
   }
 
@@ -339,22 +384,18 @@ class _SetupScreenState extends State<SetupScreen> {
       case 'openai':
         allFilled = _urlController.text.trim().isNotEmpty &&
                    _tokenController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
       case 'llmops':
         allFilled = _llmopsUrlController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
       case 'cerebras':
         allFilled = _cerebrasTokenController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
       case 'groq':
         allFilled = _groqTokenController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
     }
@@ -362,6 +403,7 @@ class _SetupScreenState extends State<SetupScreen> {
     setState(() {
       _allRequiredFieldsFilled = allFilled;
     });
+    _updateStartPulse();
   }
 
   Future<void> _detectFirstLaunch() async {
@@ -372,11 +414,54 @@ class _SetupScreenState extends State<SetupScreen> {
       setState(() {
         _isFirstLaunch = config == null;
       });
+      _updateStartPulse();
     } catch (e) {
       // При ошибке считаем, что это первый запуск
       setState(() {
         _isFirstLaunch = true;
       });
+      _updateStartPulse();
+    }
+  }
+
+  void _updateStartPulse() {
+    _ensureStartPulseController();
+    final shouldPulse = _shouldPulseStartButton();
+    if (shouldPulse && _startPulseController != null) {
+      if (!_startPulseController!.isAnimating) {
+        _startPulseController!.repeat(reverse: true);
+      }
+    } else {
+      if (_startPulseController?.isAnimating ?? false) {
+        _startPulseController!.stop();
+      }
+      if (_startPulseController != null) {
+        _startPulseController!.value = 0;
+      }
+    }
+  }
+
+  void _ensureStartPulseController() {
+    if (_startPulseController != null) return;
+    _startPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _startPulse = CurvedAnimation(
+      parent: _startPulseController!,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  Future<void> _applyThemeMode(bool isDark) async {
+    setState(() {
+      _isDarkTheme = isDark;
+    });
+    final themeService = Provider.of<ThemeService>(context, listen: false);
+    themeService.setMode(isDark ? ThemeMode.dark : ThemeMode.light);
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    if (configService.config != null) {
+      await configService.updateThemeMode(isDark);
     }
   }
 
@@ -421,6 +506,7 @@ class _SetupScreenState extends State<SetupScreen> {
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       } else if (_selectedProvider == 'cerebras') {
         config = AppConfig(
@@ -434,6 +520,7 @@ class _SetupScreenState extends State<SetupScreen> {
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       } else if (_selectedProvider == 'groq') {
         config = AppConfig(
@@ -447,6 +534,7 @@ class _SetupScreenState extends State<SetupScreen> {
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       } else {
         // LLMOps
@@ -465,6 +553,7 @@ class _SetupScreenState extends State<SetupScreen> {
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       }
 
@@ -512,6 +601,7 @@ class _SetupScreenState extends State<SetupScreen> {
         _groqTokenController.text = '';
         _selectedProvider = 'openai';
         _selectedFormat = OutputFormat.defaultFormat;
+        _isDarkTheme = true;
         _connectionSuccess = false;
         _errorMessage = null;
         _availableModels = [];
@@ -519,6 +609,8 @@ class _SetupScreenState extends State<SetupScreen> {
         _canSave = false;
         _allRequiredFieldsFilled = false;
       });
+      final themeService = Provider.of<ThemeService>(context, listen: false);
+      themeService.setMode(ThemeMode.dark);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -623,7 +715,7 @@ class _SetupScreenState extends State<SetupScreen> {
               
               // Выбор провайдера
               DropdownButtonFormField<String>(
-                value: _selectedProvider,
+                initialValue: _selectedProvider,
                 decoration: const InputDecoration(
                   labelText: 'Провайдер LLM',
                   border: OutlineInputBorder(),
@@ -661,6 +753,16 @@ class _SetupScreenState extends State<SetupScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 16),
+              // Переключение темы
+              Consumer<ThemeService>(
+                builder: (context, themeService, _) => SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Темная тема'),
+                  value: _isDarkTheme,
+                  onChanged: (value) => _applyThemeMode(value),
+                ),
+              ),
+              const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade300),
@@ -668,20 +770,28 @@ class _SetupScreenState extends State<SetupScreen> {
                 ),
                 child: Column(
                   children: OutputFormat.values.map((format) {
-                    return RadioListTile<OutputFormat>(
+                    final isConfluence = format == OutputFormat.confluence;
+                    final tile = RadioListTile<OutputFormat>(
                       title: Text(format.displayName),
                       subtitle: Text('Файлы: .${format.fileExtension}'),
                       value: format,
                       groupValue: _selectedFormat,
-                      onChanged: (OutputFormat? value) {
-                        if (value != null) {
-                          setState(() {
-                            _selectedFormat = value;
-                          });
-                          // Обновляем состояние кнопок при изменении формата
-                          _updateSaveAvailability();
-                        }
-                      },
+                      onChanged: isConfluence
+                          ? null
+                          : (OutputFormat? value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedFormat = value;
+                                });
+                                // Обновляем состояние кнопок при изменении формата
+                                _updateSaveAvailability();
+                              }
+                            },
+                    );
+                    if (!isConfluence) return tile;
+                    return Tooltip(
+                      message: 'Больше не поддерживается',
+                      child: tile,
                     );
                   }).toList(),
                 ),
@@ -927,18 +1037,24 @@ class _SetupScreenState extends State<SetupScreen> {
               
               if (_connectionSuccess) ...[
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Text(
+                if (Theme.of(context).brightness == Brightness.dark)
+                  const Text(
                     'Соединение установлено успешно!',
-                    style: TextStyle(color: Colors.green.shade700),
+                    style: TextStyle(color: Colors.green),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Text(
+                      'Соединение установлено успешно!',
+                      style: TextStyle(color: Colors.green.shade700),
+                    ),
                   ),
-                ),
                 const SizedBox(height: 16),
                 
                 // Список моделей

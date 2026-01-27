@@ -184,11 +184,15 @@ class StreamResultPanel extends StatelessWidget {
   }
 
   Widget _buildContent(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? AppTheme.darkSurface : Colors.white;
+    final borderColor = isDark ? Colors.grey.shade600 : Colors.grey.shade300;
+    final textColor = isDark ? Colors.white : Colors.black87;
     if (documentText.isEmpty && !isActive) {
       return Container(
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
-          border: Border.all(color: Colors.grey.shade300),
+          color: isDark ? AppTheme.darkSurface : Colors.grey.shade50,
+          border: Border.all(color: borderColor),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
@@ -197,7 +201,10 @@ class StreamResultPanel extends StatelessWidget {
             children: [
               Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade400),
               const SizedBox(height: 16),
-              Text('Текст появится во время генерации', style: TextStyle(color: Colors.grey.shade600)),
+              Text(
+                'Текст появится во время генерации',
+                style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+              ),
             ],
           ),
         ),
@@ -206,8 +213,8 @@ class StreamResultPanel extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
+        color: bgColor,
+        border: Border.all(color: borderColor),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Consumer<ConfigService>(
@@ -222,17 +229,17 @@ class StreamResultPanel extends StatelessWidget {
             selectable: true,
             padding: const EdgeInsets.all(16),
             styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-              p: const TextStyle(fontSize: 14, height: 1.45, color: Colors.black87),
-              h1: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              h2: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-              h3: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              p: TextStyle(fontSize: 14, height: 1.45, color: textColor),
+              h1: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: textColor),
+              h2: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: textColor),
+              h3: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: textColor),
               codeblockDecoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                border: Border.all(color: Colors.grey.shade300),
+                color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+                border: Border.all(color: borderColor),
                 borderRadius: BorderRadius.circular(6),
               ),
-              code: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-              blockquote: const TextStyle(color: Colors.black87),
+              code: TextStyle(fontFamily: 'monospace', fontSize: 13, color: textColor),
+              blockquote: TextStyle(color: textColor),
             ),
           );
         },

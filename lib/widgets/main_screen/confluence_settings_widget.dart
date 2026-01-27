@@ -26,6 +26,7 @@ class ConfluenceSettingsWidget extends StatefulWidget {
 }
 
 class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
+  static const bool _featureAvailable = false;
   final _formKey = GlobalKey<FormState>();
   final _baseUrlController = TextEditingController();
   final _emailController = TextEditingController();
@@ -62,6 +63,15 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
     final configService = Provider.of<ConfigService>(context, listen: false);
     final config = configService.config;
     
+    if (!_featureAvailable) {
+      setState(() {
+        _isEnabled = false;
+        _connectionSuccess = false;
+        _errorMessage = null;
+      });
+      return;
+    }
+
     if (config?.confluenceConfig != null) {
       final confluenceConfig = config!.confluenceConfig!;
       setState(() {
@@ -372,401 +382,452 @@ class _ConfluenceSettingsWidgetState extends State<ConfluenceSettingsWidget> {
             },
           ),
         },
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header with toggle switch
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Интеграция с Confluence',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Switch(
-                    value: _isEnabled,
-                    onChanged: _onToggleChanged,
-                    activeColor: AppTheme.primaryRed,
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 8),
-              
-              Text(
-                _isEnabled 
-                    ? 'Подключитесь к вашему рабочему пространству Confluence для ссылок на страницы и публикации спецификаций'
-                    : 'Включите для подключения к рабочему пространству Confluence',
-                style: const TextStyle(
-                  color: AppTheme.darkGray,
-                  fontSize: 14,
-                ),
-              ),
-              
-              if (_isEnabled) ...[
-                const SizedBox(height: 24),
-                
-                // Base URL field
-                AccessibleFormField(
-                  label: 'Базовый URL Confluence',
-                  hint: 'Введите URL вашего домена Confluence без пути API',
-                  required: true,
-                  enabled: !_isTestingConnection,
-                  child: FieldTooltip(
-                    label: 'Базовый URL',
-                    hint: 'Введите URL вашего домена Confluence без пути API',
-                    example: 'https://company.atlassian.net',
-                    required: true,
-                    child: TextFormField(
-                      controller: _baseUrlController,
-                      focusNode: _baseUrlFocusNode,
-                      decoration: InputDecoration(
-                        labelText: 'Базовый URL *',
-                        hintText: 'https://company.atlassian.net',
-                        helperText: 'Ваш домен Confluence (без /wiki/rest/api)',
-                        prefixIcon: const Icon(Icons.link),
-                        suffixIcon: _baseUrlController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () {
-                                  _baseUrlController.clear();
-                                  setState(() {
-                                    _connectionSuccess = false;
-                                    _errorMessage = null;
-                                  });
-                                },
-                                tooltip: 'Очистить URL',
-                              )
-                            : null,
-                      ),
-                      validator: _validateBaseUrl,
-                      enabled: !_isTestingConnection,
-                      onChanged: (_) {
-                        // Reset connection status when URL changes
-                        if (_connectionSuccess) {
-                          setState(() {
-                            _connectionSuccess = false;
-                            _errorMessage = null;
-                          });
-                        }
-                      },
-                      inputFormatters: [
-                        FilteringTextInputFormatter.deny(RegExp(r'\s')), // No spaces
-                      ],
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Email field
-                AccessibleFormField(
-                  label: 'Электронная почта',
-                  hint: 'Введите ваш адрес электронной почты Atlassian',
-                  required: true,
-                  enabled: !_isTestingConnection,
-                  child: FieldTooltip(
-                    label: 'Электронная почта',
-                    hint: 'Введите ваш адрес электронной почты Atlassian',
-                    example: 'your.email@company.com',
-                    required: true,
-                    child: TextFormField(
-                      controller: _emailController,
-                      focusNode: _emailFocusNode,
-                      decoration: InputDecoration(
-                        labelText: 'Электронная почта *',
-                        hintText: 'your.email@company.com',
-                        helperText: 'Ваш адрес электронной почты Atlassian',
-                        prefixIcon: const Icon(Icons.email),
-                        suffixIcon: _emailController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () {
-                                  _emailController.clear();
-                                  setState(() {
-                                    _connectionSuccess = false;
-                                    _errorMessage = null;
-                                  });
-                                },
-                                tooltip: 'Очистить электронную почту',
-                              )
-                            : null,
-                      ),
-                      validator: _validateEmail,
-                      enabled: !_isTestingConnection,
-                      onChanged: (_) {
-                        // Reset connection status when email changes
-                        if (_connectionSuccess) {
-                          setState(() {
-                            _connectionSuccess = false;
-                            _errorMessage = null;
-                          });
-                        }
-                      },
-                      keyboardType: TextInputType.emailAddress,
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Token field
-                AccessibleFormField(
-                  label: 'API токен Confluence',
-                  hint: 'Введите ваш API токен Confluence для аутентификации',
-                  required: true,
-                  enabled: !_isTestingConnection,
-                  child: FieldTooltip(
-                    label: 'API токен',
-                    hint: 'Создайте API токен в Настройках аккаунта Atlassian > Безопасность > API токены',
-                    example: 'ATATT3xFfGF0T4JNjBrel...',
-                    required: true,
-                    child: TextFormField(
-                      controller: _tokenController,
-                      focusNode: _tokenFocusNode,
-                      decoration: InputDecoration(
-                        labelText: 'API токен *',
-                        hintText: 'Ваш API токен Confluence',
-                        helperText: 'Создайте в Настройках аккаунта Atlassian > Безопасность > API токены',
-                        prefixIcon: const Icon(Icons.key),
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
+        child: _featureAvailable
+            ? Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header with toggle switch
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            if (_tokenController.text.isNotEmpty)
-                              IconButton(
-                                icon: const Icon(Icons.clear, size: 18),
-                                onPressed: () {
-                                  _tokenController.clear();
-                                  setState(() {
-                                    _connectionSuccess = false;
-                                    _errorMessage = null;
-                                  });
-                                },
-                                tooltip: 'Очистить токен',
+                            const Text(
+                              'Интеграция с Confluence',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
-                            IconButton(
-                              icon: const Icon(Icons.help_outline, size: 18),
-                              onPressed: () => _showTokenHelpDialog(),
-                              tooltip: 'Как создать API токен',
+                            ),
+                            Switch(
+                              value: _isEnabled,
+                              onChanged: _onToggleChanged,
+                              activeThumbColor: AppTheme.primaryRed,
                             ),
                           ],
                         ),
-                      ),
-                      obscureText: true,
-                      validator: _validateToken,
-                      enabled: !_isTestingConnection,
-                      onChanged: (_) {
-                        // Reset connection status when token changes
-                        if (_connectionSuccess) {
-                          setState(() {
-                            _connectionSuccess = false;
-                            _errorMessage = null;
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Test connection button
-                AccessibleButton(
-                  label: _isTestingConnection 
-                      ? 'Проверка соединения с Confluence, пожалуйста подождите'
-                      : _connectionSuccess
-                          ? 'Проверка соединения успешна'
-                          : 'Проверить соединение с Confluence',
-                  hint: _isTestingConnection 
-                      ? 'Пожалуйста подождите, пока мы проверяем ваше соединение'
-                      : _connectionSuccess
-                          ? 'Соединение установлено успешно'
-                          : 'Нажмите, чтобы проверить соединение с Confluence с предоставленными учетными данными',
-                  enabled: !_isTestingConnection && _canTestConnection,
-                  onPressed: _isTestingConnection ? null : _testConnection,
-                  child: ButtonTooltip(
-                    action: _isTestingConnection 
-                        ? 'Проверка соединения...'
-                        : _connectionSuccess
-                            ? 'Соединение установлено успешно'
-                            : 'Проверьте соединение с Confluence',
-                    shortcut: 'Ctrl+T',
-                    enabled: !_isTestingConnection && _canTestConnection,
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isTestingConnection ? null : _testConnection,
-                        icon: _isTestingConnection
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        
+                        const SizedBox(height: 8),
+                        
+                        Text(
+                          _isEnabled 
+                              ? 'Подключитесь к вашему рабочему пространству Confluence для ссылок на страницы и публикации спецификаций'
+                              : 'Включите для подключения к рабочему пространству Confluence',
+                          style: const TextStyle(
+                            color: AppTheme.darkGray,
+                            fontSize: 14,
+                          ),
+                        ),
+                        
+                        if (_isEnabled) ...[
+                          const SizedBox(height: 24),
+                          
+                          // Base URL field
+                          AccessibleFormField(
+                            label: 'Базовый URL Confluence',
+                            hint: 'Введите URL вашего домена Confluence без пути API',
+                            required: true,
+                            enabled: !_isTestingConnection,
+                            child: FieldTooltip(
+                              label: 'Базовый URL',
+                              hint: 'Введите URL вашего домена Confluence без пути API',
+                              example: 'https://company.atlassian.net',
+                              required: true,
+                              child: TextFormField(
+                                controller: _baseUrlController,
+                                focusNode: _baseUrlFocusNode,
+                                decoration: InputDecoration(
+                                  labelText: 'Базовый URL *',
+                                  hintText: 'https://company.atlassian.net',
+                                  helperText: 'Ваш домен Confluence (без /wiki/rest/api)',
+                                  prefixIcon: const Icon(Icons.link),
+                                  suffixIcon: _baseUrlController.text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear, size: 18),
+                                          onPressed: () {
+                                            _baseUrlController.clear();
+                                            setState(() {
+                                              _connectionSuccess = false;
+                                              _errorMessage = null;
+                                            });
+                                          },
+                                          tooltip: 'Очистить URL',
+                                        )
+                                      : null,
                                 ),
-                              )
-                            : Icon(
-                                _connectionSuccess ? Icons.check_circle : Icons.wifi_find,
-                                color: Colors.white,
+                                validator: _validateBaseUrl,
+                                enabled: !_isTestingConnection,
+                                onChanged: (_) {
+                                  // Reset connection status when URL changes
+                                  if (_connectionSuccess) {
+                                    setState(() {
+                                      _connectionSuccess = false;
+                                      _errorMessage = null;
+                                    });
+                                  }
+                                },
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.deny(RegExp(r'\\s')), // No spaces
+                                ],
                               ),
-                        label: Text(
-                          _isTestingConnection
-                              ? 'Проверка соединения...'
-                              : _connectionSuccess
-                                  ? 'Соединение установлено'
-                                  : 'Проверить соединение',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _connectionSuccess 
-                              ? Colors.green 
-                              : AppTheme.primaryRed,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // Email field
+                          AccessibleFormField(
+                            label: 'Электронная почта',
+                            hint: 'Введите ваш адрес электронной почты Atlassian',
+                            required: true,
+                            enabled: !_isTestingConnection,
+                            child: FieldTooltip(
+                              label: 'Электронная почта',
+                              hint: 'Введите ваш адрес электронной почты Atlassian',
+                              example: 'your.email@company.com',
+                              required: true,
+                              child: TextFormField(
+                                controller: _emailController,
+                                focusNode: _emailFocusNode,
+                                decoration: InputDecoration(
+                                  labelText: 'Электронная почта *',
+                                  hintText: 'your.email@company.com',
+                                  helperText: 'Ваш адрес электронной почты Atlassian',
+                                  prefixIcon: const Icon(Icons.email),
+                                  suffixIcon: _emailController.text.isNotEmpty
+                                      ? IconButton(
+                                          icon: const Icon(Icons.clear, size: 18),
+                                          onPressed: () {
+                                            _emailController.clear();
+                                            setState(() {
+                                              _connectionSuccess = false;
+                                              _errorMessage = null;
+                                            });
+                                          },
+                                          tooltip: 'Очистить электронную почту',
+                                        )
+                                      : null,
+                                ),
+                                validator: _validateEmail,
+                                enabled: !_isTestingConnection,
+                                onChanged: (_) {
+                                  // Reset connection status when email changes
+                                  if (_connectionSuccess) {
+                                    setState(() {
+                                      _connectionSuccess = false;
+                                      _errorMessage = null;
+                                    });
+                                  }
+                                },
+                                keyboardType: TextInputType.emailAddress,
+                              ),
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 16),
+                          
+                          // Token field
+                          AccessibleFormField(
+                            label: 'API токен Confluence',
+                            hint: 'Введите ваш API токен Confluence для аутентификации',
+                            required: true,
+                            enabled: !_isTestingConnection,
+                            child: FieldTooltip(
+                              label: 'API токен',
+                              hint: 'Создайте API токен в Настройках аккаунта Atlassian > Безопасность > API токены',
+                              example: 'ATATT3xFfGF0T4JNjBrel...',
+                              required: true,
+                              child: TextFormField(
+                                controller: _tokenController,
+                                focusNode: _tokenFocusNode,
+                                decoration: InputDecoration(
+                                  labelText: 'API токен *',
+                                  hintText: 'Ваш API токен Confluence',
+                                  helperText: 'Создайте в Настройках аккаунта Atlassian > Безопасность > API токены',
+                                  prefixIcon: const Icon(Icons.key),
+                                  suffixIcon: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_tokenController.text.isNotEmpty)
+                                        IconButton(
+                                          icon: const Icon(Icons.clear, size: 18),
+                                          onPressed: () {
+                                            _tokenController.clear();
+                                            setState(() {
+                                              _connectionSuccess = false;
+                                              _errorMessage = null;
+                                            });
+                                          },
+                                          tooltip: 'Очистить токен',
+                                        ),
+                                      IconButton(
+                                        icon: const Icon(Icons.help_outline, size: 18),
+                                        onPressed: () => _showTokenHelpDialog(),
+                                        tooltip: 'Как создать API токен',
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                obscureText: true,
+                                validator: _validateToken,
+                                enabled: !_isTestingConnection,
+                                onChanged: (_) {
+                                  // Reset connection status when token changes
+                                  if (_connectionSuccess) {
+                                    setState(() {
+                                      _connectionSuccess = false;
+                                      _errorMessage = null;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 24),
+                          
+                          // Test connection button
+                          AccessibleButton(
+                            label: _isTestingConnection 
+                                ? 'Проверка соединения с Confluence, пожалуйста подождите'
+                                : _connectionSuccess
+                                    ? 'Проверка соединения успешна'
+                                    : 'Проверить соединение с Confluence',
+                            hint: _isTestingConnection 
+                                ? 'Пожалуйста подождите, пока мы проверяем ваше соединение'
+                                : _connectionSuccess
+                                    ? 'Соединение установлено успешно'
+                                    : 'Нажмите, чтобы проверить соединение с Confluence с предоставленными учетными данными',
+                            enabled: !_isTestingConnection && _canTestConnection,
+                            onPressed: _isTestingConnection ? null : _testConnection,
+                            child: ButtonTooltip(
+                              action: _isTestingConnection 
+                                  ? 'Проверка соединения...'
+                                  : _connectionSuccess
+                                      ? 'Соединение установлено успешно'
+                                      : 'Проверьте соединение с Confluence',
+                              shortcut: 'Ctrl+T',
+                              enabled: !_isTestingConnection && _canTestConnection,
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _isTestingConnection ? null : _testConnection,
+                                  icon: _isTestingConnection
+                                      ? const SizedBox(
+                                          height: 16,
+                                          width: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        )
+                                      : Icon(
+                                          _connectionSuccess ? Icons.check_circle : Icons.wifi_find,
+                                          color: Colors.white,
+                                        ),
+                                  label: Text(
+                                    _isTestingConnection
+                                        ? 'Проверка соединения...'
+                                        : _connectionSuccess
+                                            ? 'Соединение установлено'
+                                            : 'Проверить соединение',
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _connectionSuccess 
+                                        ? Colors.green 
+                                        : AppTheme.primaryRed,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          
+                          // Connection status messages
+                          if (_errorMessage != null) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.red.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: Colors.red.shade700,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _errorMessage!,
+                                      style: TextStyle(
+                                        color: Colors.red.shade700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          
+                          // Всегда показываем кнопку сохранения, но с разными сообщениями в зависимости от статуса соединения
+                          ...[
+                            const SizedBox(height: 16),
+                            if (_connectionSuccess) Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.green.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.check_circle_outline,
+                                    color: Colors.green.shade700,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Соединение установлено успешно! Теперь вы можете сохранить конфигурацию.',
+                                      style: TextStyle(
+                                        color: Colors.green.shade700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (!_connectionSuccess && !_isTestingConnection && _canTestConnection && _errorMessage == null) Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.amber.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    color: Colors.amber.shade700,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Соединение ещё не проверено. Вы можете сохранить как черновик или сначала проверить соединение.',
+                                      style: TextStyle(
+                                        color: Colors.amber.shade700,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 16),
+                            
+                            // Save button (всегда активна, если заполнены обязательные поля)
+                            AccessibleButton(
+                              label: _connectionSuccess 
+                                  ? 'Сохранить конфигурацию Confluence'
+                                  : 'Сохранить конфигурацию Confluence как черновик',
+                              hint: _connectionSuccess 
+                                  ? 'Сохранить вашу конфигурацию Confluence для включения функций интеграции'
+                                  : 'Сохранить вашу конфигурацию как черновик (соединение не проверено)',
+                              enabled: _canTestConnection, // Активна, если заполнены обязательные поля
+                              onPressed: _canTestConnection ? _saveConfiguration : null,
+                              child: ButtonTooltip(
+                                action: _connectionSuccess 
+                                    ? 'Сохранить вашу конфигурацию Confluence'
+                                    : 'Сохранить вашу конфигурацию как черновик',
+                                shortcut: 'Ctrl+S',
+                                enabled: _canTestConnection,
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: _canTestConnection ? _saveConfiguration : null,
+                                    icon: const Icon(Icons.save, color: Colors.white),
+                                    label: Text(_connectionSuccess ? 'Сохранить конфигурацию' : 'Сохранить как черновик'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: _connectionSuccess ? AppTheme.primaryRed : Colors.amber.shade700,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            : Tooltip(
+                message: 'Не реализовано',
+                child: AbsorbPointer(
+                  absorbing: true,
+                  child: Opacity(
+                    opacity: 0.6,
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Header with toggle switch
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Интеграция с Confluence',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: false,
+                                    onChanged: null,
+                                    activeThumbColor: AppTheme.primaryRed,
+                                  ),
+                                ],
+                              ),
+                              
+                              const SizedBox(height: 8),
+                              
+                              const Text(
+                                'Интеграция с Confluence временно недоступна',
+                                style: TextStyle(
+                                  color: AppTheme.darkGray,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-                
-                // Connection status messages
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: Colors.red.shade700,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-                
-                // Всегда показываем кнопку сохранения, но с разными сообщениями в зависимости от статуса соединения
-                ...[
-                  const SizedBox(height: 16),
-                  if (_connectionSuccess) Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          color: Colors.green.shade700,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Соединение установлено успешно! Теперь вы можете сохранить конфигурацию.',
-                            style: TextStyle(
-                              color: Colors.green.shade700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (!_connectionSuccess && !_isTestingConnection && _canTestConnection && _errorMessage == null) Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: Colors.amber.shade700,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Соединение ещё не проверено. Вы можете сохранить как черновик или сначала проверить соединение.',
-                            style: TextStyle(
-                              color: Colors.amber.shade700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Save button (всегда активна, если заполнены обязательные поля)
-                  AccessibleButton(
-                    label: _connectionSuccess 
-                        ? 'Сохранить конфигурацию Confluence'
-                        : 'Сохранить конфигурацию Confluence как черновик',
-                    hint: _connectionSuccess 
-                        ? 'Сохранить вашу конфигурацию Confluence для включения функций интеграции'
-                        : 'Сохранить вашу конфигурацию как черновик (соединение не проверено)',
-                    enabled: _canTestConnection, // Активна, если заполнены обязательные поля
-                    onPressed: _canTestConnection ? _saveConfiguration : null,
-                    child: ButtonTooltip(
-                      action: _connectionSuccess 
-                          ? 'Сохранить вашу конфигурацию Confluence'
-                          : 'Сохранить вашу конфигурацию как черновик',
-                      shortcut: 'Ctrl+S',
-                      enabled: _canTestConnection,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _canTestConnection ? _saveConfiguration : null,
-                          icon: const Icon(Icons.save, color: Colors.white),
-                          label: Text(_connectionSuccess ? 'Сохранить конфигурацию' : 'Сохранить как черновик'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _connectionSuccess ? AppTheme.primaryRed : Colors.amber.shade700,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-                ],
               ),
-            ),
-          ),
-        ),
       ),
     );
   }

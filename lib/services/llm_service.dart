@@ -140,7 +140,7 @@ $templateHint
     final b = StringBuffer()
       ..writeln('Требования для ТЗ:\n\n$requirements');
     if (changes != null && changes.isNotEmpty) {
-      b..writeln('\nИзменения / уточнения:\n\n$changes');
+      b.writeln('\nИзменения / уточнения:\n\n$changes');
     }
     b..writeln('\n$formatInstr')
      ..writeln('Начинай поток немедленно, соблюдая протокол фаз.');
@@ -232,11 +232,19 @@ $templateHint
         model: _config!.defaultModel,
       );
     } catch (e) {
+      final raw = e.toString();
+      // Preserve provider error details when available
+      final detailed = raw.startsWith('Exception: ')
+          ? raw.substring('Exception: '.length)
+          : raw;
+      final message = detailed.isNotEmpty
+          ? 'Ошибка при отправке запроса к AI провайдеру: $detailed'
+          : 'Ошибка при отправке запроса к AI провайдеру';
       throw LLMResponseValidationException(
-        'Ошибка при отправке запроса к AI провайдеру',
+        message,
         '',
         recoveryAction: 'Проверьте подключение к интернету и настройки API. Попробуйте повторить запрос',
-        technicalDetails: e.toString(),
+        technicalDetails: raw,
       );
     }
     
@@ -409,6 +417,7 @@ $templateContent
         technicalDetails: 'Default model is empty',
       );
     }
+
   }
   
   /// Validates generation parameters
@@ -726,7 +735,7 @@ $templateContent
       }
     }
     
-    // Check for incomplete responses
+    // Check for incomplete responses only at the end of output
     final incompletePatterns = [
       '...',
       '[продолжение следует]',
@@ -734,20 +743,22 @@ $templateContent
       'и так далее',
       'etc.',
     ];
-    
+    final trimmed = response.trim();
+    final lastLine = trimmed.split(RegExp(r'[\r\n]+')).last.trim().toLowerCase();
     for (final pattern in incompletePatterns) {
-      if (response.toLowerCase().contains(pattern.toLowerCase())) {
+      final lowerPattern = pattern.toLowerCase();
+      if (lastLine == lowerPattern || lastLine.endsWith(lowerPattern)) {
         throw LLMResponseValidationException(
           'AI вернул неполный ответ',
           response,
           recoveryAction: 'Попробуйте повторить генерацию или увеличьте лимит токенов в настройках',
-          technicalDetails: 'Incomplete response pattern detected: $pattern',
+          technicalDetails: 'Incomplete response pattern detected at end: $pattern',
         );
       }
     }
     
-    // Check for error messages from AI
-    final errorPatterns = [
+    // Check for error messages from AI (only if response starts like an error)
+    final errorStarts = [
       'error',
       'ошибка',
       'failed',
@@ -755,17 +766,17 @@ $templateContent
       'exception',
       'исключение',
     ];
-    
-    for (final pattern in errorPatterns) {
-      if (response.toLowerCase().contains(pattern.toLowerCase()) &&
-          response.toLowerCase().contains('генерац')) {
-        throw LLMResponseValidationException(
-          'AI сообщил об ошибке при генерации',
-          response,
-          recoveryAction: 'Попробуйте повторить генерацию с другими параметрами',
-          technicalDetails: 'Error pattern detected in response: $pattern',
-        );
-      }
+    final firstLine = trimmed.split(RegExp(r'[\r\n]+')).first.trim().toLowerCase();
+    final hasErrorStart = errorStarts.any((pattern) => firstLine.startsWith(pattern));
+    final isLikelyError = hasErrorStart &&
+        (firstLine.contains('генерац') || trimmed.length < 200);
+    if (isLikelyError) {
+      throw LLMResponseValidationException(
+        'AI сообщил об ошибке при генерации',
+        response,
+        recoveryAction: 'Попробуйте повторить генерацию с другими параметрами',
+        technicalDetails: 'Error-like response start detected: $firstLine',
+      );
     }
   }
 

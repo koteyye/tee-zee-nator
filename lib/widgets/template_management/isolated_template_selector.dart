@@ -16,13 +16,16 @@ class IsolatedTemplateSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark ? Colors.grey.shade600 : Colors.grey.shade300;
+    final textColor = isDark ? Colors.white : Colors.black;
     return Consumer<TemplateService>(
       builder: (context, templateService, child) {
         if (!templateService.isInitialized) {
           return Container(
             height: 48,
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: borderColor),
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Center(
@@ -42,7 +45,7 @@ class IsolatedTemplateSelector extends StatelessWidget {
               return Container(
                 height: 48,
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: borderColor),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: const Center(
@@ -75,7 +78,7 @@ class IsolatedTemplateSelector extends StatelessWidget {
             return Container(
               height: 48,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: borderColor),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: InkWell(
@@ -91,10 +94,10 @@ class IsolatedTemplateSelector extends StatelessWidget {
                       Expanded(
                         child: Text(
                           activeTemplate.name,
-                          style: const TextStyle(color: Colors.black),
+                          style: TextStyle(color: textColor),
                         ),
                       ),
-                      const Icon(Icons.arrow_drop_down),
+                      Icon(Icons.arrow_drop_down, color: isDark ? Colors.white70 : null),
                     ],
                   ),
                 ),

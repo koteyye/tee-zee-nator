@@ -2,14 +2,24 @@ import 'package:flutter/material.dart';
 
 class AppTheme {
   static const Color primaryRed = Color(0xFFFF1F2C);
+  static const Color darkPrimaryRed = Color(0xFFB00018);
   static const Color lightGray = Color(0xFFF5F5F5);
   static const Color darkGray = Color(0xFF666666);
   static const Color borderGray = Color(0xFFE0E0E0);
+  static const Color darkBackground = Color(0xFF121212);
+  static const Color darkSurface = Color(0xFF1E1E1E);
+  static const Color darkBorder = Color(0xFF2A2A2A);
+  static const Color darkText = Color(0xFFECECEC);
+  static const Color darkMuted = Color(0xFFB3B3B3);
   
   static ThemeData get light {
     return ThemeData(
       primarySwatch: _createMaterialColor(primaryRed),
       primaryColor: primaryRed,
+      hoverColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      focusColor: Colors.transparent,
+      splashColor: Colors.transparent,
       scaffoldBackgroundColor: Colors.white,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
@@ -26,6 +36,31 @@ class AppTheme {
           ),
           elevation: 2,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return primaryRed.withOpacity(0.12);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primaryRed,
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return primaryRed.withOpacity(0.12);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -36,6 +71,16 @@ class AppTheme {
           ),
           side: const BorderSide(color: primaryRed),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return primaryRed.withOpacity(0.12);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -69,6 +114,124 @@ class AppTheme {
             borderRadius: BorderRadius.circular(8),
             borderSide: const BorderSide(color: borderGray),
           ),
+        ),
+      ),
+    );
+  }
+
+  static ThemeData get dark {
+    return ThemeData(
+      brightness: Brightness.dark,
+      primarySwatch: _createMaterialColor(darkPrimaryRed),
+      primaryColor: darkPrimaryRed,
+      colorScheme: const ColorScheme.dark(
+        primary: darkPrimaryRed,
+        secondary: darkPrimaryRed,
+      ),
+      hoverColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      focusColor: Colors.transparent,
+      splashColor: Colors.transparent,
+      scaffoldBackgroundColor: darkBackground,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: darkSurface,
+        foregroundColor: darkText,
+        elevation: 1,
+        centerTitle: true,
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: darkPrimaryRed,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return darkPrimaryRed.withOpacity(0.2);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: darkText,
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return Colors.white.withOpacity(0.08);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: darkPrimaryRed,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          side: const BorderSide(color: darkPrimaryRed),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return darkPrimaryRed.withOpacity(0.2);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: darkBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: darkBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: primaryRed, width: 2),
+        ),
+        filled: true,
+        fillColor: darkSurface,
+        contentPadding: const EdgeInsets.all(16),
+        hintStyle: const TextStyle(color: darkMuted),
+        labelStyle: const TextStyle(color: darkMuted),
+      ),
+      cardTheme: const CardThemeData(
+        color: darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(12)),
+        ),
+        margin: EdgeInsets.all(8),
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        textStyle: const TextStyle(fontSize: 14, color: darkText),
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: darkBorder),
+          ),
+        ),
+        menuStyle: MenuStyle(
+          backgroundColor: MaterialStateProperty.all(darkSurface),
         ),
       ),
     );
