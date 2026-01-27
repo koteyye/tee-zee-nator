@@ -31,7 +31,7 @@ class ModelSettingsCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Первая строка: модель и кнопка обновления
-                _buildModelSection(configService, llmService),
+        _buildModelSection(context, configService, llmService),
                 const SizedBox(height: 16),
                 // Вторая строка: селектор шаблонов
                 _buildTemplateSection(templateService),
@@ -43,7 +43,8 @@ class ModelSettingsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildModelSection(ConfigService configService, LLMService llmService) {
+  Widget _buildModelSection(BuildContext context, ConfigService configService, LLMService llmService) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Для LLMOps провайдера не показываем выбор модели, так как она задается в настройках
     if (configService.config?.provider == 'llmops') {
       return Row(
@@ -93,10 +94,19 @@ class ModelSettingsCard extends StatelessWidget {
                   value: configService.config?.defaultModel,
                   isExpanded: true,
                   isDense: false,
+                  style: TextStyle(
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  iconEnabledColor: isDark ? Colors.white70 : null,
                   items: llmService.availableModels.map((modelId) {
                     return DropdownMenuItem<String>(
                       value: modelId,
-                      child: Text(modelId),
+                      child: Text(
+                        modelId,
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                        ),
+                      ),
                     );
                   }).toList(),
                   onChanged: (String? newValue) {

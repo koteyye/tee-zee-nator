@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../services/template_service.dart';
 import '../services/config_service.dart';
 import '../services/llm_service.dart';
+import '../services/theme_service.dart';
 import '../models/app_config.dart';
 import '../models/openai_model.dart';
 import '../models/output_format.dart';
@@ -47,6 +48,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
   bool _hideLLMOpsAuth = true;
   bool _hideCerebrasToken = true;
   bool _hideGroqToken = true;
+  bool _isDarkTheme = true;
 
   // Новые переменные состояния для управления кнопками
   bool _isFirstLaunch = false;
@@ -122,6 +124,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
         _selectedFormat = config.outputFormat == OutputFormat.confluence
             ? OutputFormat.markdown
             : config.outputFormat;
+        _isDarkTheme = config.isDarkTheme;
         if (_selectedProvider == 'openai') {
           _urlController.text = config.apiUrl;
           _tokenController.text = config.apiToken;
@@ -136,10 +139,17 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
   // Помечаем как успешное подключение, если есть валидная конфигурация
   _connectionSuccess = true;
       });
+      final themeService = Provider.of<ThemeService>(context, listen: false);
+      themeService.setMode(_isDarkTheme ? ThemeMode.dark : ThemeMode.light);
 
       // Обновляем состояние кнопок
       _updateSaveAvailability();
       _checkRequiredFields();
+    } else {
+      final themeService = Provider.of<ThemeService>(context, listen: false);
+      setState(() {
+        _isDarkTheme = themeService.isDark;
+      });
     }
   }
   
@@ -258,6 +268,8 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
     required String tooltip,
     required VoidCallback? onPressed,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? Colors.white : Colors.black87;
     return Tooltip(
       message: tooltip,
       child: Container(
@@ -279,6 +291,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
                 assetPath,
                 width: 20,
                 height: 20,
+                colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
               ),
             ),
           ),
@@ -440,6 +453,18 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
     );
   }
 
+  Future<void> _applyThemeMode(bool isDark) async {
+    setState(() {
+      _isDarkTheme = isDark;
+    });
+    final themeService = Provider.of<ThemeService>(context, listen: false);
+    themeService.setMode(isDark ? ThemeMode.dark : ThemeMode.light);
+    final configService = Provider.of<ConfigService>(context, listen: false);
+    if (configService.config != null) {
+      await configService.updateThemeMode(isDark);
+    }
+  }
+
   // Методы действий
   Future<void> _saveConfig() async {
     if (!_formKey.currentState!.validate()) return;
@@ -481,6 +506,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       } else if (_selectedProvider == 'cerebras') {
         config = AppConfig(
@@ -494,6 +520,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       } else if (_selectedProvider == 'groq') {
         config = AppConfig(
@@ -507,6 +534,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       } else {
         // LLMOps
@@ -525,6 +553,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
           outputFormat: _selectedFormat,
           confluenceConfig: existingConfig?.confluenceConfig,
           specMusicConfig: existingConfig?.specMusicConfig,
+          isDarkTheme: _isDarkTheme,
         );
       }
 
@@ -572,6 +601,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
         _groqTokenController.text = '';
         _selectedProvider = 'openai';
         _selectedFormat = OutputFormat.defaultFormat;
+        _isDarkTheme = true;
         _connectionSuccess = false;
         _errorMessage = null;
         _availableModels = [];
@@ -579,6 +609,8 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
         _canSave = false;
         _allRequiredFieldsFilled = false;
       });
+      final themeService = Provider.of<ThemeService>(context, listen: false);
+      themeService.setMode(ThemeMode.dark);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -719,6 +751,16 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
               const Text(
                 'Предпочитаемый формат вывода',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              // Переключение темы
+              Consumer<ThemeService>(
+                builder: (context, themeService, _) => SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Темная тема'),
+                  value: _isDarkTheme,
+                  onChanged: (value) => _applyThemeMode(value),
+                ),
               ),
               const SizedBox(height: 16),
               Container(
@@ -995,18 +1037,24 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
               
               if (_connectionSuccess) ...[
                 const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200),
-                  ),
-                  child: Text(
+                if (Theme.of(context).brightness == Brightness.dark)
+                  const Text(
                     'Соединение установлено успешно!',
-                    style: TextStyle(color: Colors.green.shade700),
+                    style: TextStyle(color: Colors.green),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade200),
+                    ),
+                    child: Text(
+                      'Соединение установлено успешно!',
+                      style: TextStyle(color: Colors.green.shade700),
+                    ),
                   ),
-                ),
                 const SizedBox(height: 16),
                 
                 // Список моделей

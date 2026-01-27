@@ -517,6 +517,8 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
           });
         }
         
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final appBarFg = isDark ? Colors.white : Colors.black87;
         return Scaffold(
           appBar: AppBar(
             actions: [
@@ -531,7 +533,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   label: const Text('Шаблоны ТЗ'),
                   onPressed: _openTemplateManagement,
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.black87,
+                    foregroundColor: appBarFg,
                   ),
                 ),
               ),
@@ -544,7 +546,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   label: const Text('Настройки'),
                   onPressed: _openSettings,
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.black87,
+                    foregroundColor: appBarFg,
                   ),
                 ),
               ),
@@ -556,7 +558,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   icon: const Icon(Icons.help_outline, size: 20),
                   onPressed: _showKeyboardShortcuts,
                   style: IconButton.styleFrom(
-                    foregroundColor: Colors.black87,
+                    foregroundColor: appBarFg,
                   ),
                 ),
               ),

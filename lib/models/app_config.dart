@@ -53,6 +53,9 @@ class AppConfig {
   @JsonKey(toJson: _specMusicConfigToJson, fromJson: _specMusicConfigFromJson)
   final SpecMusicConfig? specMusicConfig; // Конфигурация музикации
 
+  @HiveField(14)
+  final bool isDarkTheme;
+
   AppConfig({
     required this.apiUrl,
     required this.apiToken,
@@ -69,7 +72,9 @@ class AppConfig {
     this.cerebrasToken,
     this.groqToken,
     this.specMusicConfig,
-  }) : outputFormat = outputFormat ?? preferredFormat ?? OutputFormat.markdown; // Приоритет: новый параметр, затем legacy, затем значение по умолчанию
+    bool? isDarkTheme,
+  })  : isDarkTheme = isDarkTheme ?? true,
+        outputFormat = outputFormat ?? preferredFormat ?? OutputFormat.markdown; // Приоритет: новый параметр, затем legacy, затем значение по умолчанию
 
   // Legacy геттер для обратной совместимости с существующими тестами/кодом
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -95,6 +100,7 @@ class AppConfig {
       cerebrasToken: map[11] as String?, // Cerebras AI токен
       groqToken: map[12] as String?, // Groq токен
       specMusicConfig: map[13] as SpecMusicConfig?, // Конфигурация музикации
+      isDarkTheme: map[14] as bool? ?? true,
       // Игнорируем старое поле useConfluenceFormat - теперь всегда используем Confluence
     );
   }
@@ -114,6 +120,7 @@ class AppConfig {
     String? cerebrasToken,
     String? groqToken,
     Object? specMusicConfig = _sentinel,
+    bool? isDarkTheme,
   }) {
     return AppConfig(
       apiUrl: apiUrl ?? this.apiUrl,
@@ -134,6 +141,7 @@ class AppConfig {
       specMusicConfig: specMusicConfig == _sentinel
           ? this.specMusicConfig
           : specMusicConfig as SpecMusicConfig?,
+      isDarkTheme: isDarkTheme ?? this.isDarkTheme,
     );
   }
 }

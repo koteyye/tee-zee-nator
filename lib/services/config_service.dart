@@ -300,6 +300,7 @@ class ConfigService extends ChangeNotifier {
         confluenceConfig: config.confluenceConfig,
         // КРИТИЧЕСКИ ВАЖНО: сохраняем конфигурацию музикации
         specMusicConfig: config.specMusicConfig,
+        isDarkTheme: config.isDarkTheme,
       );
       
       _config = newConfig;
@@ -354,6 +355,13 @@ class ConfigService extends ChangeNotifier {
   Future<void> updatePreferredFormat(OutputFormat format) async {
     if (_config != null) {
       final updatedConfig = _config!.copyWith(outputFormat: format);
+      await saveConfig(updatedConfig);
+    }
+  }
+
+  Future<void> updateThemeMode(bool isDarkTheme) async {
+    if (_config != null) {
+      final updatedConfig = _config!.copyWith(isDarkTheme: isDarkTheme);
       await saveConfig(updatedConfig);
     }
   }

@@ -115,6 +115,13 @@ class StreamingLLMService {
               gotFinal = true;
               break;
             } else if (chunk is LLMStreamChunkFinal) {
+              final full = chunk.full;
+              if (full != null && full.isNotEmpty) {
+                addJson({
+                  'stream_type': 'content',
+                  'full': full,
+                });
+              }
               if (!gotFinal) {
                 addJson({
                   'stream_type': 'status',
