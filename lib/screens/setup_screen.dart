@@ -19,7 +19,7 @@ class SetupScreen extends StatefulWidget {
   _SetupScreenState createState() => _SetupScreenState();
 }
 
-class _SetupScreenState extends State<SetupScreen> {
+class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _urlController = TextEditingController(text: 'https://api.openai.com/v1');
   final _tokenController = TextEditingController();
@@ -52,6 +52,8 @@ class _SetupScreenState extends State<SetupScreen> {
   bool _isFirstLaunch = false;
   bool _canSave = false;
   bool _allRequiredFieldsFilled = false;
+  AnimationController? _startPulseController;
+  Animation<double>? _startPulse;
 
   Future<void> _pasteInto(TextEditingController c) async {
     final data = await Clipboard.getData('text/plain');
@@ -77,12 +79,14 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   void initState() {
     super.initState();
+    _ensureStartPulseController();
     _detectFirstLaunch();
     _loadCurrentConfig();
   }
 
   @override
   void dispose() {
+    _startPulseController?.dispose();
     _urlController.dispose();
     _tokenController.dispose();
     _llmopsUrlController.dispose();
@@ -115,7 +119,9 @@ class _SetupScreenState extends State<SetupScreen> {
     if (config != null) {
       setState(() {
         _selectedProvider = config.provider;
-        _selectedFormat = config.outputFormat;
+        _selectedFormat = config.outputFormat == OutputFormat.confluence
+            ? OutputFormat.markdown
+            : config.outputFormat;
         if (_selectedProvider == 'openai') {
           _urlController.text = config.apiUrl;
           _tokenController.text = config.apiToken;
@@ -298,10 +304,32 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Widget _buildStartButton() {
-    return _buildActionButton(
+    final button = _buildActionButton(
       assetPath: 'assets/icons/save.svg', // Используем иконку сохранения для кнопки "Начать"
-      tooltip: 'Начать работу',
+      tooltip: 'Приступить к работе',
       onPressed: _allRequiredFieldsFilled ? _startWork : null,
+    );
+    if (_startPulse == null) return button;
+    if (!_shouldPulseStartButton()) return button;
+    return AnimatedBuilder(
+      animation: _startPulse!,
+      builder: (context, child) {
+        final t = _startPulse!.value;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.redAccent.withOpacity(0.25 + (t * 0.35)),
+                blurRadius: 8 + (t * 10),
+                spreadRadius: 1 + (t * 2),
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: button,
     );
   }
 
@@ -312,7 +340,11 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   bool _shouldShowStartButton() {
-    // Показываем кнопку "Начать" только при первом запуске и если все готово
+    // Показываем кнопку "Начать" только при первом запуске и при минимальной готовности
+    return _isFirstLaunch && _allRequiredFieldsFilled;
+  }
+
+  bool _shouldPulseStartButton() {
     return _isFirstLaunch && _allRequiredFieldsFilled;
   }
 
@@ -339,22 +371,18 @@ class _SetupScreenState extends State<SetupScreen> {
       case 'openai':
         allFilled = _urlController.text.trim().isNotEmpty &&
                    _tokenController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
       case 'llmops':
         allFilled = _llmopsUrlController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
       case 'cerebras':
         allFilled = _cerebrasTokenController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
       case 'groq':
         allFilled = _groqTokenController.text.trim().isNotEmpty &&
-                   _connectionSuccess &&
                    hasModel;
         break;
     }
@@ -362,6 +390,7 @@ class _SetupScreenState extends State<SetupScreen> {
     setState(() {
       _allRequiredFieldsFilled = allFilled;
     });
+    _updateStartPulse();
   }
 
   Future<void> _detectFirstLaunch() async {
@@ -372,12 +401,43 @@ class _SetupScreenState extends State<SetupScreen> {
       setState(() {
         _isFirstLaunch = config == null;
       });
+      _updateStartPulse();
     } catch (e) {
       // При ошибке считаем, что это первый запуск
       setState(() {
         _isFirstLaunch = true;
       });
+      _updateStartPulse();
     }
+  }
+
+  void _updateStartPulse() {
+    _ensureStartPulseController();
+    final shouldPulse = _shouldPulseStartButton();
+    if (shouldPulse && _startPulseController != null) {
+      if (!_startPulseController!.isAnimating) {
+        _startPulseController!.repeat(reverse: true);
+      }
+    } else {
+      if (_startPulseController?.isAnimating ?? false) {
+        _startPulseController!.stop();
+      }
+      if (_startPulseController != null) {
+        _startPulseController!.value = 0;
+      }
+    }
+  }
+
+  void _ensureStartPulseController() {
+    if (_startPulseController != null) return;
+    _startPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _startPulse = CurvedAnimation(
+      parent: _startPulseController!,
+      curve: Curves.easeInOut,
+    );
   }
 
   // Методы действий
@@ -668,20 +728,28 @@ class _SetupScreenState extends State<SetupScreen> {
                 ),
                 child: Column(
                   children: OutputFormat.values.map((format) {
-                    return RadioListTile<OutputFormat>(
+                    final isConfluence = format == OutputFormat.confluence;
+                    final tile = RadioListTile<OutputFormat>(
                       title: Text(format.displayName),
                       subtitle: Text('Файлы: .${format.fileExtension}'),
                       value: format,
                       groupValue: _selectedFormat,
-                      onChanged: (OutputFormat? value) {
-                        if (value != null) {
-                          setState(() {
-                            _selectedFormat = value;
-                          });
-                          // Обновляем состояние кнопок при изменении формата
-                          _updateSaveAvailability();
-                        }
-                      },
+                      onChanged: isConfluence
+                          ? null
+                          : (OutputFormat? value) {
+                              if (value != null) {
+                                setState(() {
+                                  _selectedFormat = value;
+                                });
+                                // Обновляем состояние кнопок при изменении формата
+                                _updateSaveAvailability();
+                              }
+                            },
+                    );
+                    if (!isConfluence) return tile;
+                    return Tooltip(
+                      message: 'Больше не поддерживается',
+                      child: tile,
                     );
                   }).toList(),
                 ),
