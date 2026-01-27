@@ -297,7 +297,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 12),
                   const Text(
-                    'Keyboard Shortcuts',
+                    'Горячие клавиши',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -307,13 +307,13 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close),
-                    tooltip: 'Close (Esc)',
+                    tooltip: 'Закрыть (Esc)',
                   ),
                 ],
               ),
               const SizedBox(height: 24),
               const Text(
-                'Speed up your workflow with these shortcuts:',
+                'Ускорьте работу с помощью этих сочетаний:',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey,
@@ -322,43 +322,43 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               _buildShortcutItem(
                 'Ctrl+Enter',
-                'Generate/Update specification',
+                'Сгенерировать / обновить ТЗ',
                 Icons.play_arrow,
                 Colors.green,
               ),
               _buildShortcutItem(
                 'Ctrl+S',
-                'Save specification to file',
+                'Сохранить ТЗ в файл',
                 Icons.save,
                 Colors.blue,
               ),
               _buildShortcutItem(
                 'Ctrl+C',
-                'Copy specification to clipboard',
+                'Скопировать ТЗ в буфер',
                 Icons.copy,
                 Colors.orange,
               ),
               _buildShortcutItem(
                 'Ctrl+P',
-                'Publish to Confluence (if enabled)',
+                'Опубликовать в Confluence (если включено)',
                 Icons.publish,
                 Colors.purple,
               ),
               _buildShortcutItem(
                 'Ctrl+R',
-                'Clear all fields',
+                'Очистить все поля',
                 Icons.clear,
                 Colors.red,
               ),
               _buildShortcutItem(
                 'F1',
-                'Show this help',
+                'Показать подсказку',
                 Icons.help,
                 Colors.grey,
               ),
               _buildShortcutItem(
                 'Esc',
-                'Close dialogs',
+                'Закрыть диалоги',
                 Icons.close,
                 Colors.grey,
               ),
@@ -367,7 +367,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Got it!'),
+                  child: const Text('Понятно!'),
                 ),
               ),
             ],
@@ -524,7 +524,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               const IntegrationIndicators(),
               const SizedBox(width: 16),
               EnhancedTooltip(
-                message: 'Manage specification templates',
+                message: 'Управление шаблонами ТЗ',
                 keyboardShortcut: 'Ctrl+T',
                 child: TextButton.icon(
                   icon: const Icon(Icons.description, size: 20),
@@ -537,7 +537,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(width: 8),
               EnhancedTooltip(
-                message: 'Open application settings',
+                message: 'Открыть настройки приложения',
                 keyboardShortcut: 'Ctrl+,',
                 child: TextButton.icon(
                   icon: const Icon(Icons.settings, size: 20),
@@ -550,7 +550,7 @@ class MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
               ),
               const SizedBox(width: 8),
               EnhancedTooltip(
-                message: 'Show keyboard shortcuts',
+                message: 'Показать горячие клавиши',
                 keyboardShortcut: 'F1',
                 child: IconButton(
                   icon: const Icon(Icons.help_outline, size: 20),

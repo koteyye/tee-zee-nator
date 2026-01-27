@@ -10,6 +10,10 @@ class AppTheme {
     return ThemeData(
       primarySwatch: _createMaterialColor(primaryRed),
       primaryColor: primaryRed,
+      hoverColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      focusColor: Colors.transparent,
+      splashColor: Colors.transparent,
       scaffoldBackgroundColor: Colors.white,
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
@@ -26,6 +30,31 @@ class AppTheme {
           ),
           elevation: 2,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return primaryRed.withOpacity(0.12);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: primaryRed,
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return primaryRed.withOpacity(0.12);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -36,6 +65,16 @@ class AppTheme {
           ),
           side: const BorderSide(color: primaryRed),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        ).copyWith(
+          overlayColor: MaterialStateProperty.resolveWith((states) {
+            if (states.contains(MaterialState.pressed)) {
+              return primaryRed.withOpacity(0.12);
+            }
+            if (states.contains(MaterialState.hovered)) {
+              return Colors.transparent;
+            }
+            return null;
+          }),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
