@@ -63,12 +63,14 @@ class StreamingLLMService {
             'message': 'Подготовка промтов',
             'ts': isoNow(),
           });
+          // For real provider streaming we need normal prompts (no NDJSON protocol),
+          // otherwise the model will emit JSON lines as content.
           final prompts = _llmService.buildGenerationPrompts(
             rawRequirements: rawRequirements,
             changes: changes,
             templateContent: templateContent,
             format: format,
-            forStreaming: true,
+            forStreaming: false,
           );
           addJson({
             'stream_type': 'status',

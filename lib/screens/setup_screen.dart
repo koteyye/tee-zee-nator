@@ -715,7 +715,7 @@ class _SetupScreenState extends State<SetupScreen> with SingleTickerProviderStat
               
               // Выбор провайдера
               DropdownButtonFormField<String>(
-                initialValue: _selectedProvider,
+                value: _selectedProvider,
                 decoration: const InputDecoration(
                   labelText: 'Провайдер LLM',
                   border: OutlineInputBorder(),

@@ -104,7 +104,7 @@ AppConfig _$AppConfigFromJson(Map<String, dynamic> json) => AppConfig(
       groqToken: json['groqToken'] as String?,
       specMusicConfig: _specMusicConfigFromJson(
           json['specMusicConfig'] as Map<String, dynamic>?),
-      isDarkTheme: json['isDarkTheme'] as bool? ?? true,
+      isDarkTheme: json['isDarkTheme'] as bool?,
     );
 
 Map<String, dynamic> _$AppConfigToJson(AppConfig instance) => <String, dynamic>{

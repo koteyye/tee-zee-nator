@@ -89,3 +89,5 @@ CLAUDE.md
 installer.iss
 /installer_output/
 docs
+
+/dist

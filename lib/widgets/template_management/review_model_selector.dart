@@ -122,7 +122,7 @@ class _ReviewModelSelectorState extends State<ReviewModelSelector> {
     }
 
     return DropdownButtonFormField<String>(
-      initialValue: widget.selectedModel,
+      value: widget.selectedModel,
       decoration: const InputDecoration(
         labelText: 'Модель для ревью шаблонов',
         border: OutlineInputBorder(),
